@@ -1367,6 +1367,110 @@ Definition packet_structure_view_from_bits
     : list PacketStructuredFieldValue :=
   map (fun field_spec => packet_structured_field_value_from_bits field_spec xs) spec.
 
+Inductive PacketFieldBehavior :=
+| PacketFieldBehaviorUnknown
+| PacketFieldBehaviorConstant
+| PacketFieldBehaviorUnitStep
+| PacketFieldBehaviorVariable.
+
+Definition packet_field_behavior_code
+    (behavior : PacketFieldBehavior)
+    : nat :=
+  match behavior with
+  | PacketFieldBehaviorUnknown => 0
+  | PacketFieldBehaviorConstant => 1
+  | PacketFieldBehaviorUnitStep => 2
+  | PacketFieldBehaviorVariable => 3
+  end.
+
+Fixpoint nat_list_all_eqb_to
+    (x : nat)
+    (xs : list nat)
+    : bool :=
+  match xs with
+  | [] => true
+  | y :: xs' => Nat.eqb x y && nat_list_all_eqb_to x xs'
+  end.
+
+Fixpoint nat_list_unit_stepb_from
+    (older : nat)
+    (xs : list nat)
+    : bool :=
+  match xs with
+  | [] => true
+  | y :: xs' =>
+      Nat.eqb (S older) y
+      && nat_list_unit_stepb_from y xs'
+  end.
+
+Definition nat_list_unit_stepb
+    (xs : list nat)
+    : bool :=
+  match xs with
+  | [] => true
+  | x :: xs' => nat_list_unit_stepb_from x xs'
+  end.
+
+Fixpoint last_nat_or
+    (default : nat)
+    (xs : list nat)
+    : nat :=
+  match xs with
+  | [] => default
+  | y :: xs' => last_nat_or y xs'
+  end.
+
+Definition packet_field_values_from_bits_sequence
+    (field_spec : PacketStructureFieldSpec)
+    (xss : list (list bool))
+    : list nat :=
+  map (fun xs => field_value (packet_structure_bits field_spec) xs) xss.
+
+Definition packet_field_behavior_from_values
+    (values : list nat)
+    : PacketFieldBehavior :=
+  match values with
+  | [] => PacketFieldBehaviorUnknown
+  | x :: xs =>
+      if nat_list_all_eqb_to x xs then
+        PacketFieldBehaviorConstant
+      else if nat_list_unit_stepb (x :: xs) then
+        PacketFieldBehaviorUnitStep
+      else
+        PacketFieldBehaviorVariable
+  end.
+
+Record PacketStructuredFieldProfile := {
+  structured_profile_role : PacketFieldRole;
+  structured_profile_offset : nat;
+  structured_profile_width : nat;
+  structured_profile_first_value : nat;
+  structured_profile_last_value : nat;
+  structured_profile_behavior : PacketFieldBehavior
+}.
+
+Definition packet_structured_field_profile_from_bits_sequence
+    (field_spec : PacketStructureFieldSpec)
+    (xss : list (list bool))
+    : PacketStructuredFieldProfile :=
+  let values := packet_field_values_from_bits_sequence field_spec xss in
+  {| structured_profile_role := packet_structure_role field_spec;
+     structured_profile_offset := field_offset (packet_structure_bits field_spec);
+     structured_profile_width := field_width (packet_structure_bits field_spec);
+     structured_profile_first_value :=
+       match values with
+       | [] => 0
+       | x :: _ => x
+       end;
+     structured_profile_last_value := last_nat_or 0 values;
+     structured_profile_behavior := packet_field_behavior_from_values values |}.
+
+Definition packet_structure_profile_from_bits_sequence
+    (spec : PacketStructureSpec)
+    (xss : list (list bool))
+    : list PacketStructuredFieldProfile :=
+  map (fun field_spec => packet_structured_field_profile_from_bits_sequence field_spec xss) spec.
+
 Definition packet_field_end (spec : BitFieldSpec) : nat :=
   field_offset spec + field_width spec.
 
@@ -1563,6 +1667,28 @@ Definition prefix12_stronger_than_hi16_lo8b
   &&
   counter_schema_fits_bitsb prefix12_suffix12_counter_schema frames.
 
+Lemma nat_list_all_eqb_to_repeat_true :
+  forall x n,
+    nat_list_all_eqb_to x (repeat x n) = true.
+Proof.
+  intros x n.
+  induction n as [|n IH]; simpl.
+  - reflexivity.
+  - rewrite Nat.eqb_refl, IH.
+    reflexivity.
+Qed.
+
+Theorem packet_field_behavior_from_values_repeat_constant :
+  forall x n,
+    packet_field_behavior_from_values (x :: repeat x n) =
+      PacketFieldBehaviorConstant.
+Proof.
+  intros x n.
+  unfold packet_field_behavior_from_values.
+  rewrite nat_list_all_eqb_to_repeat_true.
+  reflexivity.
+Qed.
+
 Lemma field_counter_view_eqb_refl :
   forall view,
     field_counter_view_eqb view view = true.
@@ -1725,6 +1851,13 @@ Definition canonical_packet_structure_view_from_runs
     (rs : Runs)
     : list PacketStructuredFieldValue :=
   packet_structure_view_from_bits spec (canonical_frame_bits_from_runs rs).
+
+Definition packet_structure_profile_from_run_sequence
+    (spec : PacketStructureSpec)
+    (rss : list Runs)
+    : list PacketStructuredFieldProfile :=
+  packet_structure_profile_from_bits_sequence spec
+    (map canonical_frame_bits_from_runs rss).
 
 Definition canonical_field_counter_view_from_runs
     (schema : CounterSchema)
@@ -2612,6 +2745,36 @@ Proof.
     apply canonical_packet_structure_view_from_runs_scale_invariant.
     + exact Hfactor2.
     + exact Hactive.
+Qed.
+
+Theorem packet_structured_field_profile_from_bits_sequence_repeat_constant :
+  forall field_spec bits n,
+    structured_profile_behavior
+      (packet_structured_field_profile_from_bits_sequence
+         field_spec
+         (repeat bits (S n))) =
+      PacketFieldBehaviorConstant.
+Proof.
+  intros field_spec bits n.
+  unfold packet_structured_field_profile_from_bits_sequence,
+    packet_field_values_from_bits_sequence.
+  rewrite map_repeat.
+  simpl.
+  apply packet_field_behavior_from_values_repeat_constant.
+Qed.
+
+Theorem packet_structure_profile_from_bits_sequence_repeat_constant :
+  forall spec bits n,
+    map structured_profile_behavior
+      (packet_structure_profile_from_bits_sequence spec (repeat bits (S n))) =
+      repeat PacketFieldBehaviorConstant (length spec).
+Proof.
+  intros spec bits n.
+  induction spec as [|field_spec spec' IH]; simpl.
+  - reflexivity.
+  - f_equal.
+    + apply packet_structured_field_profile_from_bits_sequence_repeat_constant.
+    + apply IH.
 Qed.
 
 

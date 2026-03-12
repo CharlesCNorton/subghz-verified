@@ -333,6 +333,12 @@ Definition predicted_tx_family_bases
     : list nat :=
   map (fun te => canonical_pulse_base_from_runs (tx_family_member base_pattern te)) tes.
 
+Definition predicted_tx_family_frame_bits
+    (base_pattern : Runs)
+    (tes : list nat)
+    : list (list bool) :=
+  map (fun te => canonical_frame_bits_from_runs (tx_family_member base_pattern te)) tes.
+
 Definition predicted_tx_family_frame_words
     (base_pattern : Runs)
     (tes : list nat)
@@ -357,6 +363,14 @@ Definition predicted_tx_family_packet_structures
     (tes : list nat)
     : list (list PacketStructuredFieldValue) :=
   map (fun te => canonical_packet_structure_view_from_runs spec (tx_family_member base_pattern te)) tes.
+
+Definition tx_family_packet_structure_profile
+    (spec : PacketStructureSpec)
+    (base_pattern : Runs)
+    (tes : list nat)
+    : list PacketStructuredFieldProfile :=
+  packet_structure_profile_from_run_sequence spec
+    (map (fun te => tx_family_member base_pattern te) tes).
 
 Definition predicted_tx_family_counter_views
     (schema : CounterSchema)
@@ -414,6 +428,21 @@ Proof.
   induction Htes as [|te tes Hte Htes IH]; simpl.
   - reflexivity.
   - rewrite (tx_family_canonical_object_law base_pattern te Hte Hactive).
+    rewrite IH.
+    reflexivity.
+Qed.
+
+Theorem predicted_tx_family_frame_bits_constant :
+  forall base_pattern tes,
+    Forall (fun te => 0 < te) tes ->
+    active_run_lengths base_pattern <> [] ->
+    predicted_tx_family_frame_bits base_pattern tes =
+      repeat (canonical_frame_bits_from_runs base_pattern) (length tes).
+Proof.
+  intros base_pattern tes Htes Hactive.
+  induction Htes as [|te tes Hte Htes IH]; simpl.
+  - reflexivity.
+  - rewrite (tx_family_frame_bits_law base_pattern te Hte Hactive).
     rewrite IH.
     reflexivity.
 Qed.
@@ -476,6 +505,30 @@ Proof.
   - rewrite (tx_family_packet_structure_law spec base_pattern te Hte Hactive).
     rewrite IH.
     reflexivity.
+Qed.
+
+Theorem tx_family_packet_structure_profile_constant :
+  forall spec base_pattern tes,
+    Forall (fun te => 0 < te) tes ->
+    active_run_lengths base_pattern <> [] ->
+    tes <> [] ->
+    map structured_profile_behavior
+      (tx_family_packet_structure_profile spec base_pattern tes) =
+      repeat PacketFieldBehaviorConstant (length spec).
+Proof.
+  intros spec base_pattern tes Htes Hactive Hnonempty.
+  destruct tes as [|te tes'].
+  - contradiction Hnonempty. reflexivity.
+  - unfold tx_family_packet_structure_profile,
+      packet_structure_profile_from_run_sequence.
+    rewrite map_map.
+    change
+      (map
+         (fun te0 : nat => canonical_frame_bits_from_runs (tx_family_member base_pattern te0))
+         (te :: tes'))
+      with (predicted_tx_family_frame_bits base_pattern (te :: tes')).
+    rewrite (predicted_tx_family_frame_bits_constant base_pattern (te :: tes') Htes Hactive).
+    apply packet_structure_profile_from_bits_sequence_repeat_constant.
 Qed.
 
 Theorem predicted_tx_family_counter_views_constant :

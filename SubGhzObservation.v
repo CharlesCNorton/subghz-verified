@@ -1578,6 +1578,14 @@ Definition frame_bits_sequence_from_iq
     : list (list bool) :=
   map (canonical_frame_bits_from_iq window_pairs threshold) xss.
 
+Definition packet_structure_profile_from_iq_sequence
+    (spec : PacketStructureSpec)
+    (window_pairs threshold : nat)
+    (xss : list ByteStream)
+    : list PacketStructuredFieldProfile :=
+  packet_structure_profile_from_bits_sequence spec
+    (frame_bits_sequence_from_iq window_pairs threshold xss).
+
 Definition counter_schema_fits_iqb
     (schema : CounterSchema)
     (window_pairs threshold : nat)
@@ -1644,6 +1652,19 @@ Proof.
   unfold prefix12_stronger_than_hi16_lo8_from_iqb in Hstrong.
   apply prefix12_stronger_than_hi16_lo8b_sound.
   exact Hstrong.
+Qed.
+
+Theorem frame_bits_sequence_invariant_between_iq_regimes_implies_packet_structure_profile_invariant :
+  forall spec window_pairs1 threshold1 window_pairs2 threshold2 xss,
+    frame_bits_sequence_from_iq window_pairs1 threshold1 xss =
+      frame_bits_sequence_from_iq window_pairs2 threshold2 xss ->
+    packet_structure_profile_from_iq_sequence spec window_pairs1 threshold1 xss =
+      packet_structure_profile_from_iq_sequence spec window_pairs2 threshold2 xss.
+Proof.
+  intros spec window_pairs1 threshold1 window_pairs2 threshold2 xss Hbits.
+  unfold packet_structure_profile_from_iq_sequence.
+  rewrite Hbits.
+  reflexivity.
 Qed.
 
 Definition emitter_class_from_iq

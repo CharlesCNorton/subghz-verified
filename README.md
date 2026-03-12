@@ -66,6 +66,10 @@ emissions.
 distinguish simple counter interpretations, carry boundaries, and physically
 realized first-packet metamer families.
 
+`structures/manifest.csv` is the packet-schema catalog. It records per-family
+structure profiles and the sequence-level structure rows that justify counter
+and metamer interpretations.
+
 `robustness/manifest.csv` records representative threshold-drift, IQ-energy,
 and class-preserving jitter checks against tracked captures.
 
@@ -102,6 +106,9 @@ Under that regime:
 - repeated `000100 te500` captures recover the same canonical object and frame word
 - the `000100 -> 000103` sequence fits both simple counter schemas
 - the `0001FE -> 000201` sequence rejects `hi16/lo8` and preserves `prefix12/suffix12`
+- `structures/manifest.csv` classifies the tracked family sweeps as constant
+  byte-payload families and records the sequence rows where counter behavior
+  becomes visible
 - the `D15EA5 te175` edge capture recovers the family under the fine `15 / 98304` regime and drifts under coarser regimes
 - the `C0FFEE te175` edge capture also requires the fine `15 / 98304` regime; coarser regimes drift
 - deliberate gain, offset, and bounded perturbation checks preserve the canonical object and frame word for `CAFE42` and `1CEB00`

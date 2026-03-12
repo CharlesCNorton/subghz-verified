@@ -64,7 +64,9 @@ Extraction "burst_detector_extracted.ml"
   field_bits
   field_value
   packet_field_role_code
+  packet_field_behavior_code
   packet_structure_view_from_bits
+  packet_structure_profile_from_bits_sequence
   packet24_byte_structure_spec
   packet24_nibble_structure_spec
   packet24_hi16_lo8_structure_spec
@@ -116,6 +118,7 @@ Extraction "burst_detector_extracted.ml"
   canonical_prefix12_suffix12_counter_view_from_iq
   canonical_packet_schema_fresh_from_iq
   frame_bits_sequence_from_iq
+  packet_structure_profile_from_iq_sequence
   counter_schema_fits_iqb
   counter_schema_fit_report_from_iq_sequence
   counter_schema_classification_code_from_iq_sequence
