@@ -948,8 +948,227 @@ Fixpoint first_frame_bits_from_tokens_aux
 Definition first_frame_bits_from_tokens (xs : list FrameToken) : list bool :=
   first_frame_bits_from_tokens_aux false xs.
 
+Definition token_noise_prefix (xs : list FrameToken) : Prop :=
+  Forall (fun tok => tok = FrameBreak \/ tok = FrameUnknown) xs.
+
+Lemma first_frame_bits_from_tokens_aux_true_app_break :
+  forall xs ys,
+    first_frame_bits_from_tokens_aux true (xs ++ FrameBreak :: ys) =
+      first_frame_bits_from_tokens_aux true xs.
+Proof.
+  induction xs as [|x xs IH]; intros ys; simpl.
+  - reflexivity.
+  - destruct x; simpl.
+    + rewrite IH.
+      reflexivity.
+    + rewrite IH.
+      reflexivity.
+    + reflexivity.
+    + reflexivity.
+Qed.
+
+Theorem first_frame_bits_from_tokens_prefix_noise_invariant :
+  forall prefix xs,
+    token_noise_prefix prefix ->
+    first_frame_bits_from_tokens (prefix ++ xs) =
+      first_frame_bits_from_tokens xs.
+Proof.
+  intros prefix xs Hnoise.
+  induction Hnoise; simpl.
+  - reflexivity.
+  - destruct H as [Hbreak | Hunknown]; subst; simpl; exact IHHnoise.
+Qed.
+
+Theorem first_frame_bits_from_tokens_suffix_break_invariant :
+  forall xs,
+    first_frame_bits_from_tokens (xs ++ [FrameBreak]) =
+      first_frame_bits_from_tokens xs.
+Proof.
+  induction xs as [|x xs IH].
+  - reflexivity.
+  - unfold first_frame_bits_from_tokens in *.
+    simpl.
+    destruct x; simpl.
+    + f_equal.
+      apply first_frame_bits_from_tokens_aux_true_app_break.
+    + f_equal.
+      apply first_frame_bits_from_tokens_aux_true_app_break.
+    + exact IH.
+    + exact IH.
+Qed.
+
 Definition frame_bits_from_classes (xs : list PulseClass) : list bool :=
   first_frame_bits_from_tokens (frame_tokens_from_classes xs).
+
+Fixpoint classes_of_bits (xs : list bool) : list PulseClass :=
+  match xs with
+  | [] => [GapBreak]
+  | false :: xs' => MarkShort :: GapLong :: classes_of_bits xs'
+  | true :: xs' => MarkLong :: GapShort :: classes_of_bits xs'
+  end.
+
+Lemma frame_tokens_from_classes_of_bits :
+  forall xs,
+    frame_tokens_from_classes (classes_of_bits xs) =
+      map (fun b : bool => if b then FrameBitOne else FrameBitZero) xs ++ [FrameBreak].
+Proof.
+  induction xs as [|b xs IH]; simpl.
+  - reflexivity.
+  - destruct b; simpl; rewrite IH; reflexivity.
+Qed.
+
+Lemma frame_tokens_from_classes_of_bits_app :
+  forall xs suffix,
+    frame_tokens_from_classes (classes_of_bits xs ++ suffix) =
+      map (fun b : bool => if b then FrameBitOne else FrameBitZero) xs ++
+      frame_tokens_from_classes (GapBreak :: suffix).
+Proof.
+  induction xs as [|b xs IH]; intro suffix; simpl.
+  - reflexivity.
+  - destruct b; simpl; rewrite IH; reflexivity.
+Qed.
+
+Lemma first_frame_bits_from_bit_tokens_aux_true :
+  forall xs,
+    first_frame_bits_from_tokens_aux true
+      (map (fun b : bool => if b then FrameBitOne else FrameBitZero) xs ++ [FrameBreak]) = xs.
+Proof.
+  induction xs as [|b xs IH]; simpl.
+  - reflexivity.
+  - destruct b; simpl; rewrite IH; reflexivity.
+Qed.
+
+Lemma first_frame_bits_from_bit_tokens :
+  forall xs,
+    first_frame_bits_from_tokens
+      (map (fun b : bool => if b then FrameBitOne else FrameBitZero) xs ++ [FrameBreak]) = xs.
+Proof.
+  intro xs.
+  unfold first_frame_bits_from_tokens.
+  simpl.
+  destruct xs as [|b xs].
+  - reflexivity.
+  - destruct b; simpl; f_equal; apply first_frame_bits_from_bit_tokens_aux_true.
+Qed.
+
+Lemma first_frame_bits_from_bit_tokens_then_break_suffix :
+  forall xs ys,
+    first_frame_bits_from_tokens_aux true
+      (map (fun b : bool => if b then FrameBitOne else FrameBitZero) xs ++ FrameBreak :: ys) = xs.
+Proof.
+  induction xs as [|b xs IH]; intro ys; simpl.
+  - reflexivity.
+  - destruct b; simpl; f_equal; apply IH.
+Qed.
+
+Theorem frame_bits_from_classes_of_bits :
+  forall xs,
+    frame_bits_from_classes (classes_of_bits xs) = xs.
+Proof.
+  intro xs.
+  unfold frame_bits_from_classes.
+  rewrite frame_tokens_from_classes_of_bits.
+  apply first_frame_bits_from_bit_tokens.
+Qed.
+
+Theorem frame_bits_from_classes_of_bits_with_suffix :
+  forall xs suffix,
+    xs <> [] ->
+    frame_bits_from_classes (classes_of_bits xs ++ suffix) = xs.
+Proof.
+  intros xs suffix Hnonempty.
+  destruct xs as [|b xs].
+  - contradiction.
+  - unfold frame_bits_from_classes.
+    rewrite frame_tokens_from_classes_of_bits_app.
+    unfold first_frame_bits_from_tokens.
+    simpl.
+    destruct b; simpl; f_equal;
+      apply first_frame_bits_from_bit_tokens_then_break_suffix.
+Qed.
+
+Definition packet_alias_classes (xs ys : list PulseClass) : Prop :=
+  frame_bits_from_classes xs = frame_bits_from_classes ys.
+
+Theorem classes_of_bits_suffix_alias :
+  forall bits suffix1 suffix2,
+    bits <> [] ->
+    packet_alias_classes
+      (classes_of_bits bits ++ suffix1)
+      (classes_of_bits bits ++ suffix2).
+Proof.
+  intros bits suffix1 suffix2 Hbits.
+  unfold packet_alias_classes.
+  rewrite (frame_bits_from_classes_of_bits_with_suffix bits suffix1 Hbits).
+  rewrite (frame_bits_from_classes_of_bits_with_suffix bits suffix2 Hbits).
+  reflexivity.
+Qed.
+
+Theorem packet_alias_classes_noninjective :
+  forall bits,
+    bits <> [] ->
+    exists xs ys,
+      xs <> ys /\
+      frame_bits_from_classes xs = bits /\
+      frame_bits_from_classes ys = bits.
+Proof.
+  intros bits Hbits.
+  exists (classes_of_bits bits ++ [MarkShort]).
+  exists (classes_of_bits bits ++ [MarkShort; MarkShort]).
+  split.
+  - intro Heq.
+    assert (Hlen :
+      length (classes_of_bits bits ++ [MarkShort]) =
+      length (classes_of_bits bits ++ [MarkShort; MarkShort])).
+    { rewrite Heq. reflexivity. }
+    repeat rewrite length_app in Hlen.
+    simpl in Hlen.
+    lia.
+  - split.
+    + apply frame_bits_from_classes_of_bits_with_suffix.
+      exact Hbits.
+    + apply frame_bits_from_classes_of_bits_with_suffix.
+      exact Hbits.
+Qed.
+
+Theorem packet_alias_classes_infinite_tail_family :
+  forall bits n1 n2,
+    bits <> [] ->
+    packet_alias_classes
+      (classes_of_bits bits ++ repeat MarkShort n1)
+      (classes_of_bits bits ++ repeat MarkShort n2).
+Proof.
+  intros bits n1 n2 Hbits.
+  apply classes_of_bits_suffix_alias.
+  exact Hbits.
+Qed.
+
+Theorem packet_alias_classes_tail_family_distinct :
+  forall bits n1 n2,
+    bits <> [] ->
+    n1 <> n2 ->
+    classes_of_bits bits ++ repeat MarkShort n1 <>
+      classes_of_bits bits ++ repeat MarkShort n2.
+Proof.
+  intros bits n1 n2 Hbits Hneq Heq.
+  assert (Hlen :
+    length (classes_of_bits bits ++ repeat MarkShort n1) =
+    length (classes_of_bits bits ++ repeat MarkShort n2)).
+  { rewrite Heq. reflexivity. }
+  repeat rewrite length_app in Hlen.
+  repeat rewrite repeat_length in Hlen.
+  lia.
+Qed.
+
+Corollary frame_bits_from_classes_token_suffix_break_invariant :
+  forall xs,
+    first_frame_bits_from_tokens (frame_tokens_from_classes xs ++ [FrameBreak]) =
+      frame_bits_from_classes xs.
+Proof.
+  intro xs.
+  unfold frame_bits_from_classes.
+  apply first_frame_bits_from_tokens_suffix_break_invariant.
+Qed.
 
 Definition canonical_frame_bits_from_runs (rs : Runs) : list bool :=
   frame_bits_from_classes (canonical_normalized_pulse_classes rs).
@@ -980,6 +1199,107 @@ Definition packet24_from_bits (xs : list bool) : Packet24 :=
 
 Definition canonical_packet24_from_runs (rs : Runs) : Packet24 :=
   packet24_from_bits (canonical_frame_bits_from_runs rs).
+
+Record DecodedPacketView := {
+  view_bits : list bool;
+  view_word : nat;
+  view_packet24 : Packet24
+}.
+
+Definition decoded_packet_view_from_classes
+    (xs : list PulseClass)
+    : DecodedPacketView :=
+  {| view_bits := frame_bits_from_classes xs;
+     view_word := bits_to_nat (frame_bits_from_classes xs);
+     view_packet24 := packet24_from_bits (frame_bits_from_classes xs) |}.
+
+Definition decoded_packet_view_from_runs
+    (rs : Runs)
+    : DecodedPacketView :=
+  decoded_packet_view_from_classes (canonical_normalized_pulse_classes rs).
+
+Theorem classes_of_bits_suffix_word_alias :
+  forall bits suffix1 suffix2,
+    bits <> [] ->
+    bits_to_nat (frame_bits_from_classes (classes_of_bits bits ++ suffix1)) =
+      bits_to_nat (frame_bits_from_classes (classes_of_bits bits ++ suffix2)).
+Proof.
+  intros bits suffix1 suffix2 Hbits.
+  rewrite (classes_of_bits_suffix_alias bits suffix1 suffix2 Hbits).
+  reflexivity.
+Qed.
+
+Theorem classes_of_bits_suffix_packet24_alias :
+  forall bits suffix1 suffix2,
+    bits <> [] ->
+    packet24_from_bits (frame_bits_from_classes (classes_of_bits bits ++ suffix1)) =
+      packet24_from_bits (frame_bits_from_classes (classes_of_bits bits ++ suffix2)).
+Proof.
+  intros bits suffix1 suffix2 Hbits.
+  rewrite (classes_of_bits_suffix_alias bits suffix1 suffix2 Hbits).
+  reflexivity.
+Qed.
+
+Theorem classes_of_bits_suffix_view_alias :
+  forall bits suffix1 suffix2,
+    bits <> [] ->
+    decoded_packet_view_from_classes (classes_of_bits bits ++ suffix1) =
+      decoded_packet_view_from_classes (classes_of_bits bits ++ suffix2).
+Proof.
+  intros bits suffix1 suffix2 Hbits.
+  unfold decoded_packet_view_from_classes.
+  rewrite (classes_of_bits_suffix_alias bits suffix1 suffix2 Hbits).
+  reflexivity.
+Qed.
+
+Theorem decoded_packet_view_noninjective :
+  forall bits,
+    bits <> ([] : list bool) ->
+    exists xs ys,
+      xs <> ys /\
+      decoded_packet_view_from_classes xs = decoded_packet_view_from_classes ys.
+Proof.
+  intros bits Hbits.
+  exists (classes_of_bits bits ++ [MarkShort]).
+  exists (classes_of_bits bits ++ [MarkShort; MarkShort]).
+  split.
+  - intro Heq.
+    assert (Hlen :
+      length (classes_of_bits bits ++ [MarkShort]) =
+      length (classes_of_bits bits ++ [MarkShort; MarkShort])).
+    { rewrite Heq. reflexivity. }
+    repeat rewrite length_app in Hlen.
+    simpl in Hlen.
+    lia.
+  - apply classes_of_bits_suffix_view_alias.
+    exact Hbits.
+Qed.
+
+Theorem decoded_packet_view_infinite_tail_family :
+  forall bits n1 n2,
+    bits <> ([] : list bool) ->
+    decoded_packet_view_from_classes
+      (classes_of_bits bits ++ repeat MarkShort n1) =
+    decoded_packet_view_from_classes
+      (classes_of_bits bits ++ repeat MarkShort n2).
+Proof.
+  intros bits n1 n2 Hbits.
+  apply classes_of_bits_suffix_view_alias.
+  exact Hbits.
+Qed.
+
+Theorem decoded_packet_view_tail_family_distinct :
+  forall bits n1 n2,
+    bits <> ([] : list bool) ->
+    n1 <> n2 ->
+    classes_of_bits bits ++ repeat MarkShort n1 <>
+      classes_of_bits bits ++ repeat MarkShort n2.
+Proof.
+  intros bits n1 n2 Hbits Hneq.
+  apply packet_alias_classes_tail_family_distinct.
+  - exact Hbits.
+  - exact Hneq.
+Qed.
 
 Theorem pulse_base_from_runs_canonical :
   forall rs,
@@ -1517,6 +1837,40 @@ Proof.
   - exact Hactive.
 Qed.
 
+Theorem canonical_packet24_from_runs_scale_invariant :
+  forall factor rs,
+    0 < factor ->
+    active_run_lengths rs <> [] ->
+    canonical_packet24_from_runs (scale_runs factor rs) =
+      canonical_packet24_from_runs rs.
+Proof.
+  intros factor rs Hfactor Hactive.
+  unfold canonical_packet24_from_runs.
+  rewrite canonical_frame_bits_from_runs_scale_invariant.
+  - reflexivity.
+  - exact Hfactor.
+  - exact Hactive.
+Qed.
+
+Corollary canonical_packet24_pairwise_scale_equal :
+  forall factor1 factor2 rs,
+    0 < factor1 ->
+    0 < factor2 ->
+    active_run_lengths rs <> [] ->
+    canonical_packet24_from_runs (scale_runs factor1 rs) =
+      canonical_packet24_from_runs (scale_runs factor2 rs).
+Proof.
+  intros factor1 factor2 rs Hfactor1 Hfactor2 Hactive.
+  transitivity (canonical_packet24_from_runs rs).
+  - apply canonical_packet24_from_runs_scale_invariant.
+    + exact Hfactor1.
+    + exact Hactive.
+  - symmetry.
+    apply canonical_packet24_from_runs_scale_invariant.
+    + exact Hfactor2.
+    + exact Hactive.
+Qed.
+
 
 Corollary canonical_normalized_pulse_classes_pairwise_scale_equal :
   forall factor1 factor2 rs,
@@ -1618,12 +1972,28 @@ Record FamilyDescriptor := {
   family_frame_bits : list bool
 }.
 
+Record FamilySemanticTower := {
+  tower_object : CanonicalRFObject;
+  tower_bits : list bool;
+  tower_word : nat;
+  tower_packet24 : Packet24
+}.
+
 Definition family_descriptor_from_runs (rs : Runs) : FamilyDescriptor :=
   {| family_object := canonical_rf_object_from_runs rs;
      family_frame_bits := canonical_frame_bits_from_runs rs |}.
 
 Definition tx_family_descriptor (base_pattern : Runs) : FamilyDescriptor :=
   family_descriptor_from_runs base_pattern.
+
+Definition semantic_tower_from_runs (rs : Runs) : FamilySemanticTower :=
+  {| tower_object := canonical_rf_object_from_runs rs;
+     tower_bits := canonical_frame_bits_from_runs rs;
+     tower_word := canonical_frame_word_from_runs rs;
+     tower_packet24 := canonical_packet24_from_runs rs |}.
+
+Definition tx_family_semantic_tower (base_pattern : Runs) : FamilySemanticTower :=
+  semantic_tower_from_runs base_pattern.
 
 Theorem tx_family_canonical_object_law :
   forall base_pattern te,
@@ -1681,6 +2051,36 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem tx_family_packet24_law :
+  forall base_pattern te,
+    0 < te ->
+    active_run_lengths base_pattern <> [] ->
+    canonical_packet24_from_runs (tx_family_member base_pattern te) =
+      canonical_packet24_from_runs base_pattern.
+Proof.
+  intros base_pattern te Hte Hactive.
+  unfold tx_family_member.
+  apply canonical_packet24_from_runs_scale_invariant.
+  - exact Hte.
+  - exact Hactive.
+Qed.
+
+Theorem tx_family_semantic_tower_law :
+  forall base_pattern te,
+    0 < te ->
+    active_run_lengths base_pattern <> [] ->
+    semantic_tower_from_runs (tx_family_member base_pattern te) =
+      tx_family_semantic_tower base_pattern.
+Proof.
+  intros base_pattern te Hte Hactive.
+  unfold semantic_tower_from_runs, tx_family_semantic_tower.
+  rewrite tx_family_canonical_object_law by exact Hte || exact Hactive.
+  rewrite tx_family_frame_bits_law by exact Hte || exact Hactive.
+  rewrite tx_family_frame_word_law by exact Hte || exact Hactive.
+  rewrite tx_family_packet24_law by exact Hte || exact Hactive.
+  reflexivity.
+Qed.
+
 Corollary tx_family_members_share_canonical_object :
   forall base_pattern te1 te2,
     0 < te1 ->
@@ -1695,6 +2095,25 @@ Proof.
   - exact Hte1.
   - exact Hte2.
   - exact Hactive.
+Qed.
+
+Corollary tx_family_members_share_packet24 :
+  forall base_pattern te1 te2,
+    0 < te1 ->
+    0 < te2 ->
+    active_run_lengths base_pattern <> [] ->
+    canonical_packet24_from_runs (tx_family_member base_pattern te1) =
+      canonical_packet24_from_runs (tx_family_member base_pattern te2).
+Proof.
+  intros base_pattern te1 te2 Hte1 Hte2 Hactive.
+  transitivity (canonical_packet24_from_runs base_pattern).
+  - apply tx_family_packet24_law.
+    + exact Hte1.
+    + exact Hactive.
+  - symmetry.
+    apply tx_family_packet24_law.
+    + exact Hte2.
+    + exact Hactive.
 Qed.
 
 Theorem tx_family_object_and_base_order_law :
@@ -1759,9 +2178,35 @@ Definition predicted_tx_family_bases
     : list nat :=
   map (fun te => canonical_pulse_base_from_runs (tx_family_member base_pattern te)) tes.
 
+Definition predicted_tx_family_frame_words
+    (base_pattern : Runs)
+    (tes : list nat)
+    : list nat :=
+  map (fun te => canonical_frame_word_from_runs (tx_family_member base_pattern te)) tes.
+
+Definition predicted_tx_family_packets
+    (base_pattern : Runs)
+    (tes : list nat)
+    : list Packet24 :=
+  map (fun te => canonical_packet24_from_runs (tx_family_member base_pattern te)) tes.
+
+Definition predicted_tx_family_towers
+    (base_pattern : Runs)
+    (tes : list nat)
+    : list FamilySemanticTower :=
+  map (fun te => semantic_tower_from_runs (tx_family_member base_pattern te)) tes.
+
 Record TxSweepPrediction := {
   sweep_prediction_object : CanonicalRFObject;
   sweep_prediction_bases : list nat
+}.
+
+Record TxSweepSemanticPrediction := {
+  semantic_prediction_object : CanonicalRFObject;
+  semantic_prediction_bits : list bool;
+  semantic_prediction_word : nat;
+  semantic_prediction_packet24 : Packet24;
+  semantic_prediction_bases : list nat
 }.
 
 Definition tx_family_sweep_prediction
@@ -1770,6 +2215,16 @@ Definition tx_family_sweep_prediction
     : TxSweepPrediction :=
   {| sweep_prediction_object := tx_family_object base_pattern;
      sweep_prediction_bases := predicted_tx_family_bases base_pattern tes |}.
+
+Definition tx_family_semantic_prediction
+    (base_pattern : Runs)
+    (tes : list nat)
+    : TxSweepSemanticPrediction :=
+  {| semantic_prediction_object := tx_family_object base_pattern;
+     semantic_prediction_bits := canonical_frame_bits_from_runs base_pattern;
+     semantic_prediction_word := canonical_frame_word_from_runs base_pattern;
+     semantic_prediction_packet24 := canonical_packet24_from_runs base_pattern;
+     semantic_prediction_bases := predicted_tx_family_bases base_pattern tes |}.
 
 Theorem predicted_tx_family_objects_constant :
   forall base_pattern tes,
@@ -1782,6 +2237,51 @@ Proof.
   induction Htes as [|te tes Hte Htes IH]; simpl.
   - reflexivity.
   - rewrite (tx_family_canonical_object_law base_pattern te Hte Hactive).
+    rewrite IH.
+    reflexivity.
+Qed.
+
+Theorem predicted_tx_family_frame_words_constant :
+  forall base_pattern tes,
+    Forall (fun te => 0 < te) tes ->
+    active_run_lengths base_pattern <> [] ->
+    predicted_tx_family_frame_words base_pattern tes =
+      repeat (canonical_frame_word_from_runs base_pattern) (length tes).
+Proof.
+  intros base_pattern tes Htes Hactive.
+  induction Htes as [|te tes Hte Htes IH]; simpl.
+  - reflexivity.
+  - rewrite (tx_family_frame_word_law base_pattern te Hte Hactive).
+    rewrite IH.
+    reflexivity.
+Qed.
+
+Theorem predicted_tx_family_packets_constant :
+  forall base_pattern tes,
+    Forall (fun te => 0 < te) tes ->
+    active_run_lengths base_pattern <> [] ->
+    predicted_tx_family_packets base_pattern tes =
+      repeat (canonical_packet24_from_runs base_pattern) (length tes).
+Proof.
+  intros base_pattern tes Htes Hactive.
+  induction Htes as [|te tes Hte Htes IH]; simpl.
+  - reflexivity.
+  - rewrite (tx_family_packet24_law base_pattern te Hte Hactive).
+    rewrite IH.
+    reflexivity.
+Qed.
+
+Theorem predicted_tx_family_towers_constant :
+  forall base_pattern tes,
+    Forall (fun te => 0 < te) tes ->
+    active_run_lengths base_pattern <> [] ->
+    predicted_tx_family_towers base_pattern tes =
+      repeat (tx_family_semantic_tower base_pattern) (length tes).
+Proof.
+  intros base_pattern tes Htes Hactive.
+  induction Htes as [|te tes Hte Htes IH]; simpl.
+  - reflexivity.
+  - rewrite (tx_family_semantic_tower_law base_pattern te Hte Hactive).
     rewrite IH.
     reflexivity.
 Qed.
@@ -1846,6 +2346,53 @@ Proof.
   - exact Htes.
   - exact Hinc.
   - exact Hpos.
+  - exact Hactive.
+Qed.
+
+Theorem tx_family_semantic_prediction_words_sound :
+  forall base_pattern tes,
+    Forall (fun te => 0 < te) tes ->
+    active_run_lengths base_pattern <> [] ->
+    predicted_tx_family_frame_words base_pattern tes =
+      repeat
+        (semantic_prediction_word (tx_family_semantic_prediction base_pattern tes))
+        (length tes).
+Proof.
+  intros base_pattern tes Htes Hactive.
+  unfold tx_family_semantic_prediction.
+  apply predicted_tx_family_frame_words_constant.
+  - exact Htes.
+  - exact Hactive.
+Qed.
+
+Theorem tx_family_semantic_prediction_packets_sound :
+  forall base_pattern tes,
+    Forall (fun te => 0 < te) tes ->
+    active_run_lengths base_pattern <> [] ->
+    predicted_tx_family_packets base_pattern tes =
+      repeat
+        (semantic_prediction_packet24 (tx_family_semantic_prediction base_pattern tes))
+        (length tes).
+Proof.
+  intros base_pattern tes Htes Hactive.
+  unfold tx_family_semantic_prediction.
+  apply predicted_tx_family_packets_constant.
+  - exact Htes.
+  - exact Hactive.
+Qed.
+
+Theorem tx_family_semantic_prediction_towers_sound :
+  forall base_pattern tes,
+    Forall (fun te => 0 < te) tes ->
+    active_run_lengths base_pattern <> [] ->
+    predicted_tx_family_towers base_pattern tes =
+      repeat
+        (tx_family_semantic_tower base_pattern)
+        (length tes).
+Proof.
+  intros base_pattern tes Htes Hactive.
+  apply predicted_tx_family_towers_constant.
+  - exact Htes.
   - exact Hactive.
 Qed.
 
@@ -3398,6 +3945,15 @@ Definition family_descriptor_from_iq
   {| family_object := canonical_pulse_classes_from_iq window_pairs threshold xs;
      family_frame_bits := canonical_frame_bits_from_iq window_pairs threshold xs |}.
 
+Definition semantic_tower_from_iq
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    : FamilySemanticTower :=
+  {| tower_object := canonical_pulse_classes_from_iq window_pairs threshold xs;
+     tower_bits := canonical_frame_bits_from_iq window_pairs threshold xs;
+     tower_word := canonical_frame_word_from_iq window_pairs threshold xs;
+     tower_packet24 := canonical_packet24_from_iq window_pairs threshold xs |}.
+
 Definition observed_iq_matches_family
     (base_pattern : Runs)
     (window_pairs threshold : nat)
@@ -3455,6 +4011,24 @@ Proof.
   unfold family_descriptor_from_iq, tx_family_descriptor, family_descriptor_from_runs.
   rewrite Hmatch.
   rewrite (observed_iq_matches_family_implies_frame_bits
+             base_pattern window_pairs threshold xs Hmatch).
+  reflexivity.
+Qed.
+
+Theorem observed_iq_matches_family_implies_semantic_tower :
+  forall base_pattern window_pairs threshold xs,
+    observed_iq_matches_family base_pattern window_pairs threshold xs ->
+    semantic_tower_from_iq window_pairs threshold xs =
+      tx_family_semantic_tower base_pattern.
+Proof.
+  intros base_pattern window_pairs threshold xs Hmatch.
+  unfold semantic_tower_from_iq, tx_family_semantic_tower, semantic_tower_from_runs.
+  rewrite Hmatch.
+  rewrite (observed_iq_matches_family_implies_frame_bits
+             base_pattern window_pairs threshold xs Hmatch).
+  rewrite (observed_iq_matches_family_implies_frame_word
+             base_pattern window_pairs threshold xs Hmatch).
+  rewrite (observed_iq_matches_family_implies_packet24
              base_pattern window_pairs threshold xs Hmatch).
   reflexivity.
 Qed.
@@ -3542,6 +4116,25 @@ Proof.
   unfold family_descriptor_from_iq.
   rewrite Hclasses.
   rewrite (class_invariant_between_iq_regimes_implies_frame_bits_invariant
+             window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
+  reflexivity.
+Qed.
+
+Theorem class_invariant_between_iq_regimes_implies_semantic_tower_invariant :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    canonical_pulse_classes_from_iq window_pairs1 threshold1 xs =
+      canonical_pulse_classes_from_iq window_pairs2 threshold2 xs ->
+    semantic_tower_from_iq window_pairs1 threshold1 xs =
+      semantic_tower_from_iq window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses.
+  unfold semantic_tower_from_iq.
+  rewrite Hclasses.
+  rewrite (class_invariant_between_iq_regimes_implies_frame_bits_invariant
+             window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
+  rewrite (class_invariant_between_iq_regimes_implies_frame_word_invariant
+             window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
+  rewrite (class_invariant_between_iq_regimes_implies_packet24_invariant
              window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
   reflexivity.
 Qed.
