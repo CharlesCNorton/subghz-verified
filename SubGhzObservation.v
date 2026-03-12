@@ -1193,6 +1193,80 @@ Definition canonical_field_counter_fresh_from_iq
   field_counter_fresh state
     (canonical_field_counter_view_from_iq schema window_pairs threshold xs).
 
+Definition frame_bits_sequence_from_iq
+    (window_pairs threshold : nat)
+    (xss : list ByteStream)
+    : list (list bool) :=
+  map (canonical_frame_bits_from_iq window_pairs threshold) xss.
+
+Definition counter_schema_fits_iqb
+    (schema : CounterSchema)
+    (window_pairs threshold : nat)
+    (xss : list ByteStream)
+    : bool :=
+  counter_schema_fits_bitsb schema
+    (frame_bits_sequence_from_iq window_pairs threshold xss).
+
+Definition counter_schema_fit_report_from_iq_sequence
+    (window_pairs threshold : nat)
+    (xss : list ByteStream)
+    : CounterSchemaFitReport :=
+  counter_schema_fit_report_from_bits
+    (frame_bits_sequence_from_iq window_pairs threshold xss).
+
+Definition counter_schema_classification_code_from_iq_sequence
+    (window_pairs threshold : nat)
+    (xss : list ByteStream)
+    : nat :=
+  counter_schema_classification_code_from_bits
+    (frame_bits_sequence_from_iq window_pairs threshold xss).
+
+Definition prefix12_stronger_than_hi16_lo8_from_iqb
+    (window_pairs threshold : nat)
+    (xss : list ByteStream)
+    : bool :=
+  prefix12_stronger_than_hi16_lo8b
+    (frame_bits_sequence_from_iq window_pairs threshold xss).
+
+Theorem counter_schema_fits_iqb_sound :
+  forall schema window_pairs threshold xss,
+    counter_schema_fits_iqb schema window_pairs threshold xss = true ->
+    counter_schema_fits_bits schema
+      (frame_bits_sequence_from_iq window_pairs threshold xss).
+Proof.
+  intros schema window_pairs threshold xss Hfit.
+  unfold counter_schema_fits_iqb.
+  apply counter_schema_fits_bitsb_sound.
+  exact Hfit.
+Qed.
+
+Theorem counter_schema_classification_code_from_iq_sequence_singleton :
+  forall window_pairs threshold xs,
+    counter_schema_classification_code_from_iq_sequence window_pairs threshold [xs] = 3.
+Proof.
+  intros window_pairs threshold xs.
+  unfold counter_schema_classification_code_from_iq_sequence,
+    counter_schema_classification_code_from_bits,
+    counter_schema_fit_report_from_bits,
+    frame_bits_sequence_from_iq.
+  simpl.
+  reflexivity.
+Qed.
+
+Theorem prefix12_stronger_than_hi16_lo8_from_iqb_sound :
+  forall window_pairs threshold xss,
+    prefix12_stronger_than_hi16_lo8_from_iqb window_pairs threshold xss = true ->
+    counter_schema_fits_bitsb hi16_lo8_counter_schema
+      (frame_bits_sequence_from_iq window_pairs threshold xss) = false /\
+    counter_schema_fits_bits prefix12_suffix12_counter_schema
+      (frame_bits_sequence_from_iq window_pairs threshold xss).
+Proof.
+  intros window_pairs threshold xss Hstrong.
+  unfold prefix12_stronger_than_hi16_lo8_from_iqb in Hstrong.
+  apply prefix12_stronger_than_hi16_lo8b_sound.
+  exact Hstrong.
+Qed.
+
 Definition emitter_class_from_iq
     (window_pairs threshold : nat)
     (xs : ByteStream)

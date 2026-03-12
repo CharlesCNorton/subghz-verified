@@ -68,7 +68,13 @@ Extraction "burst_detector_extracted.ml"
   field_counter_view_from_bits
   hi16_lo8_counter_view_from_bits
   prefix12_suffix12_counter_view_from_bits
+  field_counter_view_eqb
   field_counter_step
+  field_counter_stepb
+  counter_schema_fits_bitsb
+  counter_schema_fit_report_from_bits
+  counter_schema_classification_code_from_bits
+  prefix12_stronger_than_hi16_lo8b
   packet24_from_bits
   packet24_byte_view_from_bits
   packet24_nibble_view_from_bits
@@ -97,6 +103,11 @@ Extraction "burst_detector_extracted.ml"
   canonical_field_counter_view_from_iq
   canonical_hi16_lo8_counter_view_from_iq
   canonical_prefix12_suffix12_counter_view_from_iq
+  frame_bits_sequence_from_iq
+  counter_schema_fits_iqb
+  counter_schema_fit_report_from_iq_sequence
+  counter_schema_classification_code_from_iq_sequence
+  prefix12_stronger_than_hi16_lo8_from_iqb
   pulse_parse_certificate_self_consistent
   certify_canonical_pulse_parse_from_iq
   certify_canonical_frame_parse_from_iq.

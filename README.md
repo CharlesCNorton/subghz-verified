@@ -23,6 +23,7 @@ compared against.
 - Timing-family invariance and family separation theorems
 - Parse certificates
 - Decoded frame-bit, frame-word, and packet semantics
+- Counter-schema taxonomy over decoded frame sequences
 
 ## Data
 
@@ -52,6 +53,10 @@ canonical class digest and the decoded first-frame bits for each tracked family.
 `replay/manifest.csv` records repeated project-native captures used to tie the
 decoded replay layer to real repeated emissions.
 
+`schemas/manifest.csv` records the project-native schema probes used to
+distinguish simple counter interpretations at carry boundaries and patterned
+numeric sequences.
+
 ## Current Results
 
 The current canonical full-file SDR regime uses:
@@ -80,3 +85,4 @@ Under that regime:
 - deliberate gain, offset, and bounded perturbation checks preserve the canonical object and frame word for `CAFE42` and `1CEB00`
 - deliberate gain, offset, and bounded perturbation checks preserve the canonical object and frame word for `D15EA5`
 - the tracked families remain distinct
+- `prefix12/suffix12` is the stronger live counter schema on the tested numeric carry boundaries

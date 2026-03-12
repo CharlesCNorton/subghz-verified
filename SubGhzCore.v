@@ -1317,6 +1317,249 @@ Definition field_counter_step (older newer : FieldCounterView) : Prop :=
   field_counter_key older = field_counter_key newer /\
   field_counter_value newer = S (field_counter_value older).
 
+Definition field_counter_view_eqb
+    (x y : FieldCounterView)
+    : bool :=
+  Nat.eqb (field_counter_key x) (field_counter_key y)
+  &&
+  Nat.eqb (field_counter_value x) (field_counter_value y).
+
+Definition field_counter_stepb
+    (older newer : FieldCounterView)
+    : bool :=
+  Nat.eqb (field_counter_key older) (field_counter_key newer)
+  &&
+  Nat.eqb (S (field_counter_value older)) (field_counter_value newer).
+
+Fixpoint field_counter_step_sequence_from
+    (older : FieldCounterView)
+    (views : list FieldCounterView)
+    : Prop :=
+  match views with
+  | [] => True
+  | y :: views' =>
+      field_counter_step older y /\
+      field_counter_step_sequence_from y views'
+  end.
+
+Definition field_counter_step_sequence
+    (views : list FieldCounterView)
+    : Prop :=
+  match views with
+  | [] => True
+  | x :: views' => field_counter_step_sequence_from x views'
+  end.
+
+Fixpoint field_counter_step_sequenceb_from
+    (older : FieldCounterView)
+    (views : list FieldCounterView)
+    : bool :=
+  match views with
+  | [] => true
+  | y :: views' =>
+      field_counter_stepb older y
+      &&
+      field_counter_step_sequenceb_from y views'
+  end.
+
+Definition field_counter_step_sequenceb
+    (views : list FieldCounterView)
+    : bool :=
+  match views with
+  | [] => true
+  | x :: views' => field_counter_step_sequenceb_from x views'
+  end.
+
+Definition counter_schema_fits_bits
+    (schema : CounterSchema)
+    (frames : list (list bool))
+    : Prop :=
+  field_counter_step_sequence
+    (map (field_counter_view_from_bits schema) frames).
+
+Definition counter_schema_fits_bitsb
+    (schema : CounterSchema)
+    (frames : list (list bool))
+    : bool :=
+  field_counter_step_sequenceb
+    (map (field_counter_view_from_bits schema) frames).
+
+Record CounterSchemaFitReport := {
+  fit_report_hi16_lo8 : bool;
+  fit_report_prefix12_suffix12 : bool
+}.
+
+Definition counter_schema_fit_report_from_bits
+    (frames : list (list bool))
+    : CounterSchemaFitReport :=
+  {| fit_report_hi16_lo8 :=
+       counter_schema_fits_bitsb hi16_lo8_counter_schema frames;
+     fit_report_prefix12_suffix12 :=
+       counter_schema_fits_bitsb prefix12_suffix12_counter_schema frames |}.
+
+Definition counter_schema_classification_code_from_bits
+    (frames : list (list bool))
+    : nat :=
+  let report := counter_schema_fit_report_from_bits frames in
+  match fit_report_hi16_lo8 report, fit_report_prefix12_suffix12 report with
+  | false, false => 0
+  | true, false => 1
+  | false, true => 2
+  | true, true => 3
+  end.
+
+Definition prefix12_stronger_than_hi16_lo8b
+    (frames : list (list bool))
+    : bool :=
+  negb (counter_schema_fits_bitsb hi16_lo8_counter_schema frames)
+  &&
+  counter_schema_fits_bitsb prefix12_suffix12_counter_schema frames.
+
+Lemma field_counter_view_eqb_refl :
+  forall view,
+    field_counter_view_eqb view view = true.
+Proof.
+  intros [key value].
+  unfold field_counter_view_eqb.
+  simpl.
+  rewrite Nat.eqb_refl, Nat.eqb_refl.
+  reflexivity.
+Qed.
+
+Theorem field_counter_stepb_sound :
+  forall older newer,
+    field_counter_stepb older newer = true ->
+    field_counter_step older newer.
+Proof.
+  intros [older_key older_value] [newer_key newer_value] Hstep.
+  unfold field_counter_stepb in Hstep.
+  apply andb_true_iff in Hstep as [Hkey Hvalue].
+  apply Nat.eqb_eq in Hkey.
+  apply Nat.eqb_eq in Hvalue.
+  split.
+  - exact Hkey.
+  - symmetry.
+    exact Hvalue.
+Qed.
+
+Theorem field_counter_stepb_complete :
+  forall older newer,
+    field_counter_step older newer ->
+    field_counter_stepb older newer = true.
+Proof.
+  intros [older_key older_value] [newer_key newer_value] [Hkey Hvalue].
+  unfold field_counter_stepb.
+  apply andb_true_iff.
+  split.
+  - apply Nat.eqb_eq.
+    exact Hkey.
+  - rewrite Hvalue.
+    apply Nat.eqb_refl.
+Qed.
+
+Theorem field_counter_step_sequenceb_from_sound :
+  forall older views,
+    field_counter_step_sequenceb_from older views = true ->
+    field_counter_step_sequence_from older views.
+Proof.
+  intros older views.
+  revert older.
+  induction views as [|view views IH]; intros older Hseq; simpl in *.
+  - exact I.
+  - apply andb_true_iff in Hseq as [Hstep Hrest].
+    split.
+    + apply field_counter_stepb_sound.
+      exact Hstep.
+    + apply IH.
+      exact Hrest.
+Qed.
+
+Theorem field_counter_step_sequenceb_sound :
+  forall views,
+    field_counter_step_sequenceb views = true ->
+    field_counter_step_sequence views.
+Proof.
+  intros [|view views] Hseq; simpl in *.
+  - exact I.
+  - apply field_counter_step_sequenceb_from_sound.
+    exact Hseq.
+Qed.
+
+Theorem field_counter_step_sequenceb_from_complete :
+  forall older views,
+    field_counter_step_sequence_from older views ->
+    field_counter_step_sequenceb_from older views = true.
+Proof.
+  intros older views.
+  revert older.
+  induction views as [|view views IH]; intros older Hseq; simpl in *.
+  - reflexivity.
+  - destruct Hseq as [Hstep Hrest].
+    apply andb_true_iff.
+    split.
+    + apply field_counter_stepb_complete.
+      exact Hstep.
+    + apply IH.
+      exact Hrest.
+Qed.
+
+Theorem field_counter_step_sequenceb_complete :
+  forall views,
+    field_counter_step_sequence views ->
+    field_counter_step_sequenceb views = true.
+Proof.
+  intros [|view views] Hseq; simpl in *.
+  - reflexivity.
+  - apply field_counter_step_sequenceb_from_complete.
+    exact Hseq.
+Qed.
+
+Corollary counter_schema_fits_bitsb_sound :
+  forall schema frames,
+    counter_schema_fits_bitsb schema frames = true ->
+    counter_schema_fits_bits schema frames.
+Proof.
+  intros schema frames Hfit.
+  unfold counter_schema_fits_bitsb, counter_schema_fits_bits in *.
+  apply field_counter_step_sequenceb_sound.
+  exact Hfit.
+Qed.
+
+Corollary counter_schema_fits_bitsb_complete :
+  forall schema frames,
+    counter_schema_fits_bits schema frames ->
+    counter_schema_fits_bitsb schema frames = true.
+Proof.
+  intros schema frames Hfit.
+  unfold counter_schema_fits_bitsb, counter_schema_fits_bits in *.
+  apply field_counter_step_sequenceb_complete.
+  exact Hfit.
+Qed.
+
+Corollary counter_schema_fits_bitsb_singleton :
+  forall schema bits,
+    counter_schema_fits_bitsb schema [bits] = true.
+Proof.
+  intros schema bits.
+  reflexivity.
+Qed.
+
+Theorem prefix12_stronger_than_hi16_lo8b_sound :
+  forall frames,
+    prefix12_stronger_than_hi16_lo8b frames = true ->
+    counter_schema_fits_bitsb hi16_lo8_counter_schema frames = false /\
+    counter_schema_fits_bits prefix12_suffix12_counter_schema frames.
+Proof.
+  intros frames Hstrong.
+  unfold prefix12_stronger_than_hi16_lo8b in Hstrong.
+  apply andb_true_iff in Hstrong as [Hhi Hprefix].
+  apply negb_true_iff in Hhi.
+  split.
+  - exact Hhi.
+  - apply counter_schema_fits_bitsb_sound.
+    exact Hprefix.
+Qed.
+
 Definition canonical_packet24_from_runs (rs : Runs) : Packet24 :=
   packet24_from_bits (canonical_frame_bits_from_runs rs).
 
