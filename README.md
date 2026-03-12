@@ -37,6 +37,10 @@ compared against.
 - `B16B00` at `te=310`, `620`, `930`, `1550`
 - `CAFE42` at `te=340`, `680`, `1020`, `1360`
 - `1CEB00` at `te=275`, `545`, `1090`, `1635`
+- `D15EA5` at `te=290`, `580`, `870`, `1450`
+- `D15EA5` refinement edge case at `te=175`
+- `000100` repeated at `te=500`
+- `000101` at `te=500`
 
 Each file is a raw RX IQ capture at `433.92 MHz`, `250 kS/s`, `28.0 dB` gain.
 `captures/manifest.csv` records hashes, transmitter parameters, and the
@@ -65,8 +69,14 @@ Under that regime:
 - the `B16B00` family shares digest `782fbf6929fb12a9430159f2e512ec13`
 - the `CAFE42` family shares digest `9892ff8172cf89f3c143fab27cfafd98`
 - the `1CEB00` family shares digest `6b8e88830c92d7161379dbab96d29486`
+- the `D15EA5` family shares digest `0ce096fea1adcd848b8e0f359833feca`
+- the `000100` family shares digest `35b0f28740a34e4e374d4e99cc50303a`
+- the `000101` family shares digest `60d799f94711ead89855090b0e62ddf8`
 - all tracked families preserve ordered inferred bases across their `te` sweeps
-- the frame decoder recovers `a1b2c3`, `55aa33`, `c0ffee`, `dead12`, `face01`, `b16b00`, `cafe42`, and `1ceb00`
+- the frame decoder recovers `a1b2c3`, `55aa33`, `c0ffee`, `dead12`, `face01`, `b16b00`, `cafe42`, `1ceb00`, `d15ea5`, `000100`, and `000101`
 - repeated `C0FFEE te500` captures recover the same canonical object and frame word
+- repeated `000100 te500` captures recover the same canonical object and frame word
+- the `D15EA5 te175` edge capture recovers the family under the fine `15 / 98304` regime and drifts under coarser regimes
 - deliberate gain, offset, and bounded perturbation checks preserve the canonical object and frame word for `CAFE42` and `1CEB00`
+- deliberate gain, offset, and bounded perturbation checks preserve the canonical object and frame word for `D15EA5`
 - the tracked families remain distinct
