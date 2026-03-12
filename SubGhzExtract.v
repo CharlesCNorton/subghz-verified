@@ -71,8 +71,13 @@ Extraction "burst_detector_extracted.ml"
   packet24_nibble_structure_spec
   packet24_hi16_lo8_structure_spec
   packet24_prefix12_suffix12_structure_spec
+  packet24_prefix20_counter4_structure_spec
+  packet24_prefix16_check4_counter4_structure_spec
+  packet24_prefix16_boundary4_counter4_structure_spec
+  packet24_prefix8_flag4_payload8_counter4_structure_spec
   hi16_lo8_counter_schema
   prefix12_suffix12_counter_schema
+  prefix20_lo4_counter_schema
   packet_structure_of_counter_schema
   field_counter_view_from_bits
   hi16_lo8_counter_view_from_bits
@@ -90,9 +95,19 @@ Extraction "burst_detector_extracted.ml"
   packet24_field_view_from_bits
   static_packet_fresh
   packet_schema_fresh_from_bits
+  packet_schema_descriptor_structure_from_bits
+  packet_schema_descriptor_profile_from_bits_sequence
+  packet_schema_descriptor_fresh_from_bits
   decoded_field_counter_fresh
   decoded_hi16_lo8_fresh
   decoded_prefix12_suffix12_fresh
+  decoded_prefix20_lo4_fresh
+  static_packet24_schema_descriptor
+  prefix12_suffix12_counter_schema_descriptor
+  prefix20_lo4_counter_schema_descriptor
+  prefix16_check4_counter4_schema_descriptor
+  prefix16_boundary4_counter4_schema_descriptor
+  prefix8_flag4_payload8_counter4_schema_descriptor
   canonical_pulse_runs_from_iq
   canonical_pulse_base_from_iq
   canonical_pulse_classes_from_iq
@@ -117,6 +132,8 @@ Extraction "burst_detector_extracted.ml"
   canonical_hi16_lo8_counter_view_from_iq
   canonical_prefix12_suffix12_counter_view_from_iq
   canonical_packet_schema_fresh_from_iq
+  canonical_packet_schema_descriptor_structure_from_iq
+  canonical_packet_schema_descriptor_fresh_from_iq
   frame_bits_sequence_from_iq
   packet_structure_profile_from_iq_sequence
   counter_schema_fits_iqb

@@ -1151,6 +1151,12 @@ Definition decoded_prefix12_suffix12_fresh
     : bool :=
   decoded_field_counter_fresh prefix12_suffix12_counter_schema state bits.
 
+Definition decoded_prefix20_lo4_fresh
+    (state : FieldCounterState)
+    (bits : list bool)
+    : bool :=
+  decoded_field_counter_fresh prefix20_lo4_counter_schema state bits.
+
 Inductive PacketSchemaKind :=
 | PacketSchemaStatic
 | PacketSchemaCounter (schema : CounterSchema).
@@ -1201,6 +1207,188 @@ Definition hi16_lo8_packet_schema_kind : PacketSchemaKind :=
 
 Definition prefix12_suffix12_packet_schema_kind : PacketSchemaKind :=
   PacketSchemaCounter prefix12_suffix12_counter_schema.
+
+Definition prefix20_lo4_packet_schema_kind : PacketSchemaKind :=
+  PacketSchemaCounter prefix20_lo4_counter_schema.
+
+Record PacketSchemaDescriptor := {
+  descriptor_structure_spec : PacketStructureSpec;
+  descriptor_freshness_kind : PacketSchemaKind
+}.
+
+Definition packet_schema_descriptor_structure_from_bits
+    (descriptor : PacketSchemaDescriptor)
+    (bits : list bool)
+    : list PacketStructuredFieldValue :=
+  packet_structure_view_from_bits (descriptor_structure_spec descriptor) bits.
+
+Definition packet_schema_descriptor_profile_from_bits_sequence
+    (descriptor : PacketSchemaDescriptor)
+    (bitss : list (list bool))
+    : list PacketStructuredFieldProfile :=
+  packet_structure_profile_from_bits_sequence
+    (descriptor_structure_spec descriptor) bitss.
+
+Definition packet_schema_descriptor_fresh_from_bits
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (bits : list bool)
+    : bool :=
+  packet_schema_fresh_from_bits
+    (descriptor_freshness_kind descriptor) state bits.
+
+Definition canonical_packet_schema_descriptor_structure_from_runs
+    (descriptor : PacketSchemaDescriptor)
+    (rs : Runs)
+    : list PacketStructuredFieldValue :=
+  packet_schema_descriptor_structure_from_bits
+    descriptor
+    (canonical_frame_bits_from_runs rs).
+
+Definition canonical_packet_schema_descriptor_fresh_from_runs
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (rs : Runs)
+    : bool :=
+  packet_schema_descriptor_fresh_from_bits
+    descriptor state (canonical_frame_bits_from_runs rs).
+
+Definition static_packet24_schema_descriptor : PacketSchemaDescriptor :=
+  {| descriptor_structure_spec := packet24_byte_structure_spec;
+     descriptor_freshness_kind := static_packet_schema_kind |}.
+
+Definition prefix12_suffix12_counter_schema_descriptor : PacketSchemaDescriptor :=
+  {| descriptor_structure_spec := packet24_prefix12_suffix12_structure_spec;
+     descriptor_freshness_kind := prefix12_suffix12_packet_schema_kind |}.
+
+Definition prefix20_lo4_counter_schema_descriptor : PacketSchemaDescriptor :=
+  {| descriptor_structure_spec := packet24_prefix20_counter4_structure_spec;
+     descriptor_freshness_kind := prefix20_lo4_packet_schema_kind |}.
+
+Definition prefix16_check4_counter4_schema_descriptor : PacketSchemaDescriptor :=
+  {| descriptor_structure_spec := packet24_prefix16_check4_counter4_structure_spec;
+     descriptor_freshness_kind := prefix20_lo4_packet_schema_kind |}.
+
+Definition prefix16_boundary4_counter4_schema_descriptor : PacketSchemaDescriptor :=
+  {| descriptor_structure_spec := packet24_prefix16_boundary4_counter4_structure_spec;
+     descriptor_freshness_kind := prefix20_lo4_packet_schema_kind |}.
+
+Definition prefix8_flag4_payload8_counter4_schema_descriptor
+    : PacketSchemaDescriptor :=
+  {| descriptor_structure_spec := packet24_prefix8_flag4_payload8_counter4_structure_spec;
+     descriptor_freshness_kind := prefix20_lo4_packet_schema_kind |}.
+
+Definition predicted_tx_family_packet_schema_structures
+    (descriptor : PacketSchemaDescriptor)
+    (base_pattern : Runs)
+    (tes : list nat)
+    : list (list PacketStructuredFieldValue) :=
+  map
+    (fun te =>
+       canonical_packet_schema_descriptor_structure_from_runs
+         descriptor
+         (tx_family_member base_pattern te))
+    tes.
+
+Theorem tx_family_packet_schema_descriptor_structure_law :
+  forall descriptor base_pattern te,
+    0 < te ->
+    active_run_lengths base_pattern <> [] ->
+    canonical_packet_schema_descriptor_structure_from_runs
+      descriptor (tx_family_member base_pattern te) =
+      canonical_packet_schema_descriptor_structure_from_runs
+        descriptor base_pattern.
+Proof.
+  intros descriptor base_pattern te Hte Hactive.
+  unfold canonical_packet_schema_descriptor_structure_from_runs,
+    packet_schema_descriptor_structure_from_bits.
+  rewrite tx_family_frame_bits_law by exact Hte || exact Hactive.
+  reflexivity.
+Qed.
+
+Theorem predicted_tx_family_packet_schema_structures_constant :
+  forall descriptor base_pattern tes,
+    Forall (fun te => 0 < te) tes ->
+    active_run_lengths base_pattern <> [] ->
+    predicted_tx_family_packet_schema_structures descriptor base_pattern tes =
+      repeat
+        (canonical_packet_schema_descriptor_structure_from_runs
+           descriptor base_pattern)
+        (length tes).
+Proof.
+  intros descriptor base_pattern tes Htes Hactive.
+  induction Htes as [|te tes Hte Htes IH]; simpl.
+  - reflexivity.
+  - rewrite
+      (tx_family_packet_schema_descriptor_structure_law
+         descriptor base_pattern te Hte Hactive).
+    rewrite IH.
+    reflexivity.
+Qed.
+
+Theorem tx_family_packet_schema_descriptor_fresh_law :
+  forall descriptor state base_pattern te,
+    0 < te ->
+    active_run_lengths base_pattern <> [] ->
+    canonical_packet_schema_descriptor_fresh_from_runs
+      descriptor state (tx_family_member base_pattern te) =
+      canonical_packet_schema_descriptor_fresh_from_runs
+        descriptor state base_pattern.
+Proof.
+  intros descriptor state base_pattern te Hte Hactive.
+  unfold canonical_packet_schema_descriptor_fresh_from_runs,
+    packet_schema_descriptor_fresh_from_bits.
+  rewrite tx_family_frame_bits_law by exact Hte || exact Hactive.
+  reflexivity.
+Qed.
+
+Corollary class_preserving_run_jitter_family_packet_schema_fresh_invariant :
+  forall kind state base rs1 rs2,
+    class_preserving_run_jitter_family base rs1 rs2 ->
+    packet_schema_fresh_from_bits kind state
+      (frame_bits_from_classes (classify_runs_with_base base rs1)) =
+      packet_schema_fresh_from_bits kind state
+        (frame_bits_from_classes (classify_runs_with_base base rs2)).
+Proof.
+  intros kind state base rs1 rs2 Hjitter.
+  unfold packet_schema_fresh_from_bits.
+  rewrite
+    (class_preserving_run_jitter_family_frame_bits_invariant
+       base rs1 rs2 Hjitter).
+  reflexivity.
+Qed.
+
+Corollary class_preserving_run_jitter_family_packet_schema_descriptor_structure_invariant :
+  forall descriptor base rs1 rs2,
+    class_preserving_run_jitter_family base rs1 rs2 ->
+    packet_schema_descriptor_structure_from_bits descriptor
+      (frame_bits_from_classes (classify_runs_with_base base rs1)) =
+      packet_schema_descriptor_structure_from_bits descriptor
+        (frame_bits_from_classes (classify_runs_with_base base rs2)).
+Proof.
+  intros descriptor base rs1 rs2 Hjitter.
+  unfold packet_schema_descriptor_structure_from_bits.
+  rewrite
+    (class_preserving_run_jitter_family_frame_bits_invariant
+       base rs1 rs2 Hjitter).
+  reflexivity.
+Qed.
+
+Corollary class_preserving_run_jitter_family_packet_schema_descriptor_fresh_invariant :
+  forall descriptor state base rs1 rs2,
+    class_preserving_run_jitter_family base rs1 rs2 ->
+    packet_schema_descriptor_fresh_from_bits descriptor state
+      (frame_bits_from_classes (classify_runs_with_base base rs1)) =
+      packet_schema_descriptor_fresh_from_bits descriptor state
+        (frame_bits_from_classes (classify_runs_with_base base rs2)).
+Proof.
+  intros descriptor state base rs1 rs2 Hjitter.
+  unfold packet_schema_descriptor_fresh_from_bits.
+  rewrite
+    (class_preserving_run_jitter_family_frame_bits_invariant
+       base rs1 rs2 Hjitter).
+  reflexivity.
+Qed.
 
 Lemma max_counter_for_key_record_same :
   forall key ctr state,

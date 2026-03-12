@@ -25,6 +25,7 @@ compared against.
 - Decoded frame-bit, frame-word, and packet semantics
 - General packet-structure specs and structure views above the 24-bit word
 - Counter-schema taxonomy over decoded frame sequences
+- Family-specific packet-schema descriptors and structure catalogs
 - Schema-aware freshness for static and counter-shaped packet families
 - Threshold-drift, noise-margin, and IQ-energy invariance at the observation layer
 - Class-preserving run-jitter invariance at the symbolic layer
@@ -43,12 +44,20 @@ compared against.
 - `CAFE42` at `te=340`, `680`, `1020`, `1360`
 - `1CEB00` at `te=275`, `545`, `1090`, `1635`
 - `D15EA5` at `te=290`, `580`, `870`, `1450`
+- `ABCD10` at `te=240`, `480`, `960`, `1440`
+- `7EA5B0` at `te=260`, `520`, `1040`, `1560`
 - `D15EA5` refinement edge case at `te=175`
 - `C0FFEE` refinement edge case at `te=175`
+- `ABCD10` refinement edge case at `te=160`
+- `7EA5B0` refinement edge case at `te=180`
 - `000100` repeated at `te=500`
 - `000101` at `te=500`
 - `000102`, `000103`, `0001FE`, `0001FF`, `000200`, `000201` at `te=500`
 - `C0FFEE` repeat-variation captures at `rep=1`, `3`, `20`
+- `ABCD10`, `ABCD11`, `ABCD12`, `ABCD13`, `ABCD1E`, `ABCD1F`, `ABCD20`,
+  `ABCD21` at `te=500`
+- `7EA5B0`, `7EA5B1`, `7EA5B2`, `7EA5B3`, `7EA5BE`, `7EA5BF`, `7EA5C0`,
+  `7EA5C1` at `te=500`
 
 Each file is a raw RX IQ capture at `433.92 MHz`, `250 kS/s`, `28.0 dB` gain.
 `captures/manifest.csv` records hashes, transmitter parameters, and the
@@ -60,18 +69,20 @@ structure / freshness interpretation for each tracked family.
 
 `replay/manifest.csv` records repeated and repeat-varied project-native captures
 used to tie schema-aware freshness and first-packet metamer results to real
-emissions.
+emissions, including regime metamers where different analysis regimes recover
+the same decoded packet under different class digests.
 
 `schemas/manifest.csv` records the project-native packet-schema probes used to
 distinguish simple counter interpretations, carry boundaries, and physically
 realized first-packet metamer families.
 
 `structures/manifest.csv` is the packet-schema catalog. It records per-family
-structure profiles and the sequence-level structure rows that justify counter
-and metamer interpretations.
+structure profiles and the sequence-level structure rows that justify counter,
+check, flag, payload, boundary, and metamer interpretations.
 
 `robustness/manifest.csv` records representative threshold-drift, IQ-energy,
-and class-preserving jitter checks against tracked captures.
+phase-walk, additive-noise, and class-preserving jitter checks against tracked
+captures.
 
 ## Current Results
 
@@ -91,6 +102,8 @@ Under that regime:
 - the `CAFE42` family shares digest `9892ff8172cf89f3c143fab27cfafd98`
 - the `1CEB00` family shares digest `6b8e88830c92d7161379dbab96d29486`
 - the `D15EA5` family shares digest `0ce096fea1adcd848b8e0f359833feca`
+- the `ABCD10` family shares digest `06017c95923ccb6afe1fa249c8d798b8`
+- the `7EA5B0` family shares digest `c7ae6bd72816cb7860be44be68a3e42b`
 - the `000100` family shares digest `35b0f28740a34e4e374d4e99cc50303a`
 - the `000101` family shares digest `60d799f94711ead89855090b0e62ddf8`
 - the `000102` family shares digest `86ee94ceaccb8a4ead0cb91b24dcc8f4`
@@ -101,18 +114,35 @@ Under that regime:
 - the `000201` family shares digest `a01fa7f07eb20ef666ce6384616151f1`
 - all tracked families preserve ordered inferred bases across their `te` sweeps
 - the frame decoder recovers `a1b2c3`, `55aa33`, `c0ffee`, `dead12`, `face01`, `b16b00`, `cafe42`, `1ceb00`, `d15ea5`, `000100`, `000101`, `000102`, `000103`, `0001fe`, `0001ff`, `000200`, and `000201`
+- the frame decoder also recovers `abcd10`, `abcd11`, `abcd12`, `abcd13`,
+  `abcd1e`, `abcd1f`, `abcd20`, `abcd21`, `7ea5b0`, `7ea5b1`, `7ea5b2`,
+  `7ea5b3`, `7ea5be`, `7ea5bf`, `7ea5c0`, and `7ea5c1`
 - repeated `C0FFEE te500` captures recover the same canonical object and frame word
 - `C0FFEE` repeat variation at `rep=1`, `3`, `10`, and `20` recovers the same first packet and structure view
 - repeated `000100 te500` captures recover the same canonical object and frame word
 - the `000100 -> 000103` sequence fits both simple counter schemas
 - the `0001FE -> 000201` sequence rejects `hi16/lo8` and preserves `prefix12/suffix12`
+- the `ABCD10 -> ABCD13` sequence reveals a constant check nibble over a
+  low-nibble unit-step counter
+- the `ABCD1E -> ABCD21` sequence exposes a boundary nibble change and a
+  low-nibble wrap
+- the `7EA5B0 -> 7EA5B3` sequence reveals a constant flag and payload above a
+  low-nibble unit-step counter
+- the `7EA5BE -> 7EA5C1` sequence exposes a payload carry boundary
 - `structures/manifest.csv` classifies the tracked family sweeps as constant
-  byte-payload families and records the sequence rows where counter behavior
-  becomes visible
+  packet families and records the sequence rows where counter, check, flag,
+  payload, and boundary behavior becomes visible
 - the `D15EA5 te175` edge capture recovers the family under the fine `15 / 98304` regime and drifts under coarser regimes
 - the `C0FFEE te175` edge capture also requires the fine `15 / 98304` regime; coarser regimes drift
+- the `ABCD10 te160` edge capture is a physically realized regime metamer:
+  distinct analysis regimes recover the same decoded packet under different
+  class digests
+- the `7EA5B0 te180` edge capture is also a physically realized regime metamer
 - deliberate gain, offset, and bounded perturbation checks preserve the canonical object and frame word for `CAFE42` and `1CEB00`
 - deliberate gain, offset, and bounded perturbation checks preserve the canonical object and frame word for `D15EA5`
+- quarter-turn phase-walk and additive-noise checks preserve the canonical
+  object and decoded packet on representative `C0FFEE`, `D15EA5`, `000200`,
+  `ABCD10`, and `7EA5B0` captures
 - upward and downward threshold drift within the proved stability margins preserves decoded packet structure on representative captures
 - a synthetic 90 degree IQ rotation preserves window energies, canonical objects, and decoded packets on representative captures
 - class-preserving run jitter preserves the decoded packet on representative captures

@@ -1254,6 +1254,24 @@ Definition packet24_prefix12_field : BitFieldSpec :=
 Definition packet24_suffix12_field : BitFieldSpec :=
   {| field_offset := 12; field_width := 12 |}.
 
+Definition packet24_prefix8_field : BitFieldSpec :=
+  {| field_offset := 0; field_width := 8 |}.
+
+Definition packet24_flag4_field : BitFieldSpec :=
+  {| field_offset := 8; field_width := 4 |}.
+
+Definition packet24_payload8_field : BitFieldSpec :=
+  {| field_offset := 12; field_width := 8 |}.
+
+Definition packet24_check4_field : BitFieldSpec :=
+  {| field_offset := 16; field_width := 4 |}.
+
+Definition packet24_counter4_field : BitFieldSpec :=
+  {| field_offset := 20; field_width := 4 |}.
+
+Definition packet24_prefix20_field : BitFieldSpec :=
+  {| field_offset := 0; field_width := 20 |}.
+
 Definition packet24_nibble0_field : BitFieldSpec :=
   {| field_offset := 0; field_width := 4 |}.
 
@@ -1524,6 +1542,39 @@ Definition packet24_prefix12_suffix12_structure_spec : PacketStructureSpec :=
     {| packet_structure_role := PacketFieldCounter;
        packet_structure_bits := packet24_suffix12_field |} ].
 
+Definition packet24_prefix20_counter4_structure_spec : PacketStructureSpec :=
+  [ {| packet_structure_role := PacketFieldPrefix;
+       packet_structure_bits := packet24_prefix20_field |};
+    {| packet_structure_role := PacketFieldCounter;
+       packet_structure_bits := packet24_counter4_field |} ].
+
+Definition packet24_prefix16_check4_counter4_structure_spec : PacketStructureSpec :=
+  [ {| packet_structure_role := PacketFieldPrefix;
+       packet_structure_bits := packet24_hi16_field |};
+    {| packet_structure_role := PacketFieldCheck;
+       packet_structure_bits := packet24_check4_field |};
+    {| packet_structure_role := PacketFieldCounter;
+       packet_structure_bits := packet24_counter4_field |} ].
+
+Definition packet24_prefix16_boundary4_counter4_structure_spec : PacketStructureSpec :=
+  [ {| packet_structure_role := PacketFieldPrefix;
+       packet_structure_bits := packet24_hi16_field |};
+    {| packet_structure_role := PacketFieldBoundary;
+       packet_structure_bits := packet24_check4_field |};
+    {| packet_structure_role := PacketFieldCounter;
+       packet_structure_bits := packet24_counter4_field |} ].
+
+Definition packet24_prefix8_flag4_payload8_counter4_structure_spec
+    : PacketStructureSpec :=
+  [ {| packet_structure_role := PacketFieldPrefix;
+       packet_structure_bits := packet24_prefix8_field |};
+    {| packet_structure_role := PacketFieldFlag;
+       packet_structure_bits := packet24_flag4_field |};
+    {| packet_structure_role := PacketFieldPayload;
+       packet_structure_bits := packet24_payload8_field |};
+    {| packet_structure_role := PacketFieldCounter;
+       packet_structure_bits := packet24_counter4_field |} ].
+
 Record CounterSchema := {
   counter_schema_key : BitFieldSpec;
   counter_schema_value : BitFieldSpec
@@ -1536,6 +1587,10 @@ Definition hi16_lo8_counter_schema : CounterSchema :=
 Definition prefix12_suffix12_counter_schema : CounterSchema :=
   {| counter_schema_key := packet24_prefix12_field;
      counter_schema_value := packet24_suffix12_field |}.
+
+Definition prefix20_lo4_counter_schema : CounterSchema :=
+  {| counter_schema_key := packet24_prefix20_field;
+     counter_schema_value := packet24_counter4_field |}.
 
 Definition packet_structure_of_counter_schema
     (schema : CounterSchema)
@@ -1874,6 +1929,81 @@ Definition canonical_prefix12_suffix12_counter_view_from_runs
     (rs : Runs)
     : FieldCounterView :=
   canonical_field_counter_view_from_runs prefix12_suffix12_counter_schema rs.
+
+Corollary class_preserving_run_jitter_family_frame_word_invariant :
+  forall base rs1 rs2,
+    class_preserving_run_jitter_family base rs1 rs2 ->
+    bits_to_nat
+      (frame_bits_from_classes (classify_runs_with_base base rs1)) =
+      bits_to_nat
+        (frame_bits_from_classes (classify_runs_with_base base rs2)).
+Proof.
+  intros base rs1 rs2 Hjitter.
+  rewrite
+    (class_preserving_run_jitter_family_frame_bits_invariant
+       base rs1 rs2 Hjitter).
+  reflexivity.
+Qed.
+
+Corollary class_preserving_run_jitter_family_packet24_invariant :
+  forall base rs1 rs2,
+    class_preserving_run_jitter_family base rs1 rs2 ->
+    packet24_from_bits
+      (frame_bits_from_classes (classify_runs_with_base base rs1)) =
+      packet24_from_bits
+        (frame_bits_from_classes (classify_runs_with_base base rs2)).
+Proof.
+  intros base rs1 rs2 Hjitter.
+  rewrite
+    (class_preserving_run_jitter_family_frame_bits_invariant
+       base rs1 rs2 Hjitter).
+  reflexivity.
+Qed.
+
+Corollary class_preserving_run_jitter_family_field_view_invariant :
+  forall base rs1 rs2,
+    class_preserving_run_jitter_family base rs1 rs2 ->
+    packet24_field_view_from_bits
+      (frame_bits_from_classes (classify_runs_with_base base rs1)) =
+      packet24_field_view_from_bits
+        (frame_bits_from_classes (classify_runs_with_base base rs2)).
+Proof.
+  intros base rs1 rs2 Hjitter.
+  rewrite
+    (class_preserving_run_jitter_family_frame_bits_invariant
+       base rs1 rs2 Hjitter).
+  reflexivity.
+Qed.
+
+Corollary class_preserving_run_jitter_family_packet_structure_invariant :
+  forall spec base rs1 rs2,
+    class_preserving_run_jitter_family base rs1 rs2 ->
+    packet_structure_view_from_bits spec
+      (frame_bits_from_classes (classify_runs_with_base base rs1)) =
+      packet_structure_view_from_bits spec
+        (frame_bits_from_classes (classify_runs_with_base base rs2)).
+Proof.
+  intros spec base rs1 rs2 Hjitter.
+  rewrite
+    (class_preserving_run_jitter_family_frame_bits_invariant
+       base rs1 rs2 Hjitter).
+  reflexivity.
+Qed.
+
+Corollary class_preserving_run_jitter_family_counter_view_invariant :
+  forall schema base rs1 rs2,
+    class_preserving_run_jitter_family base rs1 rs2 ->
+    field_counter_view_from_bits schema
+      (frame_bits_from_classes (classify_runs_with_base base rs1)) =
+      field_counter_view_from_bits schema
+        (frame_bits_from_classes (classify_runs_with_base base rs2)).
+Proof.
+  intros schema base rs1 rs2 Hjitter.
+  rewrite
+    (class_preserving_run_jitter_family_frame_bits_invariant
+       base rs1 rs2 Hjitter).
+  reflexivity.
+Qed.
 
 Record DecodedPacketView := {
   view_bits : list bool;
