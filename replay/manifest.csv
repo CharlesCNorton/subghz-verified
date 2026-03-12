@@ -1,0 +1,4 @@
+family_id,key,analysis_window_pairs,analysis_threshold,file,class_digest,frame_hex,base,notes
+C0FFEE,C0FFEE,20,131072,te500-keyc0ffee-rep10-433920000.iq,f0409e8cb4d2bdaba1fdd093301be576,c0ffee,7,repeatability baseline
+C0FFEE,C0FFEE,20,131072,te500-keyc0ffee-rep10-run2-433920000.iq,f0409e8cb4d2bdaba1fdd093301be576,c0ffee,7,repeatability check
+C0FFEE,C0FFEE,20,131072,te500-keyc0ffee-rep10-run3-433920000.iq,f0409e8cb4d2bdaba1fdd093301be576,c0ffee,7,repeatability check

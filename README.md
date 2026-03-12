@@ -15,7 +15,7 @@ are the public bench record that the proofs are compared against.
 - Run extraction and normalized pulse classification
 - Timing-family invariance and family separation theorems
 - Parse certificates
-- Decoded frame-bit and frame-word semantics
+- Decoded frame-bit, frame-word, and packet semantics
 
 ## Data
 
@@ -26,6 +26,10 @@ are the public bench record that the proofs are compared against.
 - `55AA33` at `te=200`, `400`, `600`, `800`
 - `C0FFEE` at `te=250`, `500`, `750`, `1250`
 - `DEAD12` at `te=250`, `430`, `910`, `1330`
+- `FACE01` at `te=280`, `560`, `840`, `1400`
+- `B16B00` at `te=310`, `620`, `930`, `1550`
+- `CAFE42` at `te=340`, `680`, `1020`, `1360`
+- `1CEB00` at `te=275`, `545`, `1090`, `1635`
 
 Each file is a raw RX IQ capture at `433.92 MHz`, `250 kS/s`, `28.0 dB` gain.
 `captures/manifest.csv` records hashes, transmitter parameters, and the
@@ -33,6 +37,9 @@ canonical full-file analysis regime used for the published family checks.
 
 `families/manifest.csv` is the project-native family catalog. It records the
 canonical class digest and the decoded first-frame bits for each tracked family.
+
+`replay/manifest.csv` records repeated project-native captures used to tie the
+decoded replay layer to real repeated emissions.
 
 ## Current Results
 
@@ -47,6 +54,12 @@ Under that regime:
 - the `55AA33` family shares digest `b23944cd40c832edea40ca156b5455fe`
 - the `C0FFEE` family shares digest `f0409e8cb4d2bdaba1fdd093301be576`
 - the `DEAD12` family shares digest `a57783a97009fc13b6e255e487f6e7aa`
+- the `FACE01` family shares digest `065e905b4444fd83c706b64c68675320`
+- the `B16B00` family shares digest `782fbf6929fb12a9430159f2e512ec13`
+- the `CAFE42` family shares digest `9892ff8172cf89f3c143fab27cfafd98`
+- the `1CEB00` family shares digest `6b8e88830c92d7161379dbab96d29486`
 - all tracked families preserve ordered inferred bases across their `te` sweeps
-- the frame decoder recovers `a1b2c3`, `55aa33`, `c0ffee`, and `dead12`
+- the frame decoder recovers `a1b2c3`, `55aa33`, `c0ffee`, `dead12`, `face01`, `b16b00`, `cafe42`, and `1ceb00`
+- repeated `C0FFEE te500` captures recover the same canonical object and frame word
+- deliberate gain, offset, and bounded perturbation checks preserve the canonical object and frame word for `CAFE42` and `1CEB00`
 - the tracked families remain distinct

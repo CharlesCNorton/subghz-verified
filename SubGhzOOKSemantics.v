@@ -967,6 +967,20 @@ Definition bits_to_nat (xs : list bool) : nat :=
 Definition canonical_frame_word_from_runs (rs : Runs) : nat :=
   bits_to_nat (canonical_frame_bits_from_runs rs).
 
+Record Packet24 := {
+  packet24_hi : nat;
+  packet24_mid : nat;
+  packet24_lo : nat
+}.
+
+Definition packet24_from_bits (xs : list bool) : Packet24 :=
+  {| packet24_hi := bits_to_nat (take 8 xs);
+     packet24_mid := bits_to_nat (take 8 (drop 8 xs));
+     packet24_lo := bits_to_nat (take 8 (drop 16 xs)) |}.
+
+Definition canonical_packet24_from_runs (rs : Runs) : Packet24 :=
+  packet24_from_bits (canonical_frame_bits_from_runs rs).
+
 Theorem pulse_base_from_runs_canonical :
   forall rs,
     canonical_pulse_base_from_runs rs = pulse_base_from_runs rs.
@@ -2475,6 +2489,9 @@ Qed.
 Definition scale_powers (factor : nat) (xs : PowerTrace) : PowerTrace :=
   map (Nat.mul factor) xs.
 
+Definition offset_powers (offset : nat) (xs : PowerTrace) : PowerTrace :=
+  map (Nat.add offset) xs.
+
 Definition canonical_pulse_runs_from_powers
     (threshold : nat)
     (xs : PowerTrace)
@@ -2504,6 +2521,12 @@ Definition canonical_frame_word_from_powers
     (xs : PowerTrace)
     : nat :=
   bits_to_nat (canonical_frame_bits_from_powers threshold xs).
+
+Definition canonical_packet24_from_powers
+    (threshold : nat)
+    (xs : PowerTrace)
+    : Packet24 :=
+  packet24_from_bits (canonical_frame_bits_from_powers threshold xs).
 
 Definition power_within_margin (margin x y : nat) : Prop :=
   x <= y + margin /\ y <= x + margin.
@@ -2666,6 +2689,57 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma window_above_threshold_offset_invariant :
+  forall offset threshold sample,
+    window_above_threshold (offset + threshold) (offset + sample) =
+      window_above_threshold threshold sample.
+Proof.
+  intros offset threshold sample.
+  unfold window_above_threshold.
+  destruct (Nat.leb threshold sample) eqn:Hbase.
+  - apply Nat.leb_le in Hbase.
+    apply Nat.leb_le.
+    lia.
+  - apply Nat.leb_gt in Hbase.
+    apply Nat.leb_gt.
+    lia.
+Qed.
+
+Theorem threshold_trace_offset_invariant :
+  forall offset threshold xs,
+    threshold_trace (offset + threshold) (offset_powers offset xs) =
+      threshold_trace threshold xs.
+Proof.
+  intros offset threshold xs.
+  induction xs as [|x xs IH]; simpl.
+  - reflexivity.
+  - rewrite window_above_threshold_offset_invariant.
+    rewrite IH.
+    reflexivity.
+Qed.
+
+Theorem pulse_runs_from_powers_offset_invariant :
+  forall offset threshold xs,
+    pulse_runs_from_powers (offset + threshold) (offset_powers offset xs) =
+      pulse_runs_from_powers threshold xs.
+Proof.
+  intros offset threshold xs.
+  unfold pulse_runs_from_powers.
+  rewrite threshold_trace_offset_invariant.
+  reflexivity.
+Qed.
+
+Theorem canonical_pulse_classes_from_powers_offset_invariant :
+  forall offset threshold xs,
+    canonical_pulse_classes_from_powers (offset + threshold) (offset_powers offset xs) =
+      canonical_pulse_classes_from_powers threshold xs.
+Proof.
+  intros offset threshold xs.
+  unfold canonical_pulse_classes_from_powers.
+  rewrite pulse_runs_from_powers_offset_invariant.
+  reflexivity.
+Qed.
+
 Theorem canonical_frame_bits_from_powers_scale_invariant :
   forall factor threshold xs,
     0 < factor ->
@@ -2678,6 +2752,17 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem canonical_frame_bits_from_powers_offset_invariant :
+  forall offset threshold xs,
+    canonical_frame_bits_from_powers (offset + threshold) (offset_powers offset xs) =
+      canonical_frame_bits_from_powers threshold xs.
+Proof.
+  intros offset threshold xs.
+  unfold canonical_frame_bits_from_powers, frame_bits_from_classes.
+  rewrite canonical_pulse_classes_from_powers_offset_invariant.
+  reflexivity.
+Qed.
+
 Theorem canonical_frame_word_from_powers_scale_invariant :
   forall factor threshold xs,
     0 < factor ->
@@ -2687,6 +2772,17 @@ Proof.
   intros factor threshold xs Hfactor.
   unfold canonical_frame_word_from_powers.
   rewrite canonical_frame_bits_from_powers_scale_invariant by exact Hfactor.
+  reflexivity.
+Qed.
+
+Theorem canonical_frame_word_from_powers_offset_invariant :
+  forall offset threshold xs,
+    canonical_frame_word_from_powers (offset + threshold) (offset_powers offset xs) =
+      canonical_frame_word_from_powers threshold xs.
+Proof.
+  intros offset threshold xs.
+  unfold canonical_frame_word_from_powers.
+  rewrite canonical_frame_bits_from_powers_offset_invariant.
   reflexivity.
 Qed.
 
@@ -2816,6 +2912,44 @@ Proof.
   unfold canonical_frame_word_from_powers.
   rewrite (canonical_frame_bits_from_powers_margin_invariant
              threshold margin xs ys Hmargin Hstable).
+  reflexivity.
+Qed.
+
+Theorem canonical_packet24_from_powers_scale_invariant :
+  forall factor threshold xs,
+    0 < factor ->
+    canonical_packet24_from_powers (factor * threshold) (scale_powers factor xs) =
+      canonical_packet24_from_powers threshold xs.
+Proof.
+  intros factor threshold xs Hfactor.
+  unfold canonical_packet24_from_powers.
+  rewrite (canonical_frame_bits_from_powers_scale_invariant
+             factor threshold xs Hfactor).
+  reflexivity.
+Qed.
+
+Theorem canonical_packet24_from_powers_margin_invariant :
+  forall threshold margin xs ys,
+    power_trace_within_margin margin xs ys ->
+    power_trace_threshold_stable threshold margin xs ->
+    canonical_packet24_from_powers threshold ys =
+      canonical_packet24_from_powers threshold xs.
+Proof.
+  intros threshold margin xs ys Hmargin Hstable.
+  unfold canonical_packet24_from_powers.
+  rewrite (canonical_frame_bits_from_powers_margin_invariant
+             threshold margin xs ys Hmargin Hstable).
+  reflexivity.
+Qed.
+
+Theorem canonical_packet24_from_powers_offset_invariant :
+  forall offset threshold xs,
+    canonical_packet24_from_powers (offset + threshold) (offset_powers offset xs) =
+      canonical_packet24_from_powers threshold xs.
+Proof.
+  intros offset threshold xs.
+  unfold canonical_packet24_from_powers.
+  rewrite canonical_frame_bits_from_powers_offset_invariant.
   reflexivity.
 Qed.
 
@@ -2984,6 +3118,12 @@ Definition canonical_frame_word_from_iq
     (xs : ByteStream)
     : nat :=
   bits_to_nat (canonical_frame_bits_from_iq window_pairs threshold xs).
+
+Definition canonical_packet24_from_iq
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    : Packet24 :=
+  packet24_from_bits (canonical_frame_bits_from_iq window_pairs threshold xs).
 
 Definition emitter_class_from_iq
     (window_pairs threshold : nat)
@@ -3248,6 +3388,161 @@ Theorem canonical_frame_word_from_iq_eq :
       bits_to_nat (canonical_frame_bits_from_iq window_pairs threshold xs).
 Proof.
   intros window_pairs threshold xs.
+  reflexivity.
+Qed.
+
+Definition family_descriptor_from_iq
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    : FamilyDescriptor :=
+  {| family_object := canonical_pulse_classes_from_iq window_pairs threshold xs;
+     family_frame_bits := canonical_frame_bits_from_iq window_pairs threshold xs |}.
+
+Definition observed_iq_matches_family
+    (base_pattern : Runs)
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    : Prop :=
+  canonical_pulse_classes_from_iq window_pairs threshold xs =
+    tx_family_object base_pattern.
+
+Theorem observed_iq_matches_family_implies_frame_bits :
+  forall base_pattern window_pairs threshold xs,
+    observed_iq_matches_family base_pattern window_pairs threshold xs ->
+    canonical_frame_bits_from_iq window_pairs threshold xs =
+      canonical_frame_bits_from_runs base_pattern.
+Proof.
+  intros base_pattern window_pairs threshold xs Hmatch.
+  unfold observed_iq_matches_family, tx_family_object in Hmatch.
+  unfold canonical_frame_bits_from_iq, canonical_frame_bits_from_runs.
+  rewrite Hmatch.
+  reflexivity.
+Qed.
+
+Theorem observed_iq_matches_family_implies_frame_word :
+  forall base_pattern window_pairs threshold xs,
+    observed_iq_matches_family base_pattern window_pairs threshold xs ->
+    canonical_frame_word_from_iq window_pairs threshold xs =
+      canonical_frame_word_from_runs base_pattern.
+Proof.
+  intros base_pattern window_pairs threshold xs Hmatch.
+  unfold canonical_frame_word_from_iq, canonical_frame_word_from_runs.
+  rewrite (observed_iq_matches_family_implies_frame_bits
+             base_pattern window_pairs threshold xs Hmatch).
+  reflexivity.
+Qed.
+
+Theorem observed_iq_matches_family_implies_packet24 :
+  forall base_pattern window_pairs threshold xs,
+    observed_iq_matches_family base_pattern window_pairs threshold xs ->
+    canonical_packet24_from_iq window_pairs threshold xs =
+      canonical_packet24_from_runs base_pattern.
+Proof.
+  intros base_pattern window_pairs threshold xs Hmatch.
+  unfold canonical_packet24_from_iq, canonical_packet24_from_runs.
+  rewrite (observed_iq_matches_family_implies_frame_bits
+             base_pattern window_pairs threshold xs Hmatch).
+  reflexivity.
+Qed.
+
+Theorem observed_iq_matches_family_implies_descriptor :
+  forall base_pattern window_pairs threshold xs,
+    observed_iq_matches_family base_pattern window_pairs threshold xs ->
+    family_descriptor_from_iq window_pairs threshold xs =
+      tx_family_descriptor base_pattern.
+Proof.
+  intros base_pattern window_pairs threshold xs Hmatch.
+  unfold family_descriptor_from_iq, tx_family_descriptor, family_descriptor_from_runs.
+  rewrite Hmatch.
+  rewrite (observed_iq_matches_family_implies_frame_bits
+             base_pattern window_pairs threshold xs Hmatch).
+  reflexivity.
+Qed.
+
+Theorem class_invariant_between_iq_regimes_implies_frame_bits_invariant :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    canonical_pulse_classes_from_iq window_pairs1 threshold1 xs =
+      canonical_pulse_classes_from_iq window_pairs2 threshold2 xs ->
+    canonical_frame_bits_from_iq window_pairs1 threshold1 xs =
+      canonical_frame_bits_from_iq window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses.
+  unfold canonical_frame_bits_from_iq.
+  rewrite Hclasses.
+  reflexivity.
+Qed.
+
+Theorem frame_bits_invariant_between_iq_regimes_implies_frame_word_invariant :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    canonical_frame_bits_from_iq window_pairs1 threshold1 xs =
+      canonical_frame_bits_from_iq window_pairs2 threshold2 xs ->
+    canonical_frame_word_from_iq window_pairs1 threshold1 xs =
+      canonical_frame_word_from_iq window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hbits.
+  unfold canonical_frame_word_from_iq.
+  rewrite Hbits.
+  reflexivity.
+Qed.
+
+Theorem frame_bits_invariant_between_iq_regimes_implies_packet24_invariant :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    canonical_frame_bits_from_iq window_pairs1 threshold1 xs =
+      canonical_frame_bits_from_iq window_pairs2 threshold2 xs ->
+    canonical_packet24_from_iq window_pairs1 threshold1 xs =
+      canonical_packet24_from_iq window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hbits.
+  unfold canonical_packet24_from_iq.
+  rewrite Hbits.
+  reflexivity.
+Qed.
+
+Theorem class_invariant_between_iq_regimes_implies_frame_word_invariant :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    canonical_pulse_classes_from_iq window_pairs1 threshold1 xs =
+      canonical_pulse_classes_from_iq window_pairs2 threshold2 xs ->
+    canonical_frame_word_from_iq window_pairs1 threshold1 xs =
+      canonical_frame_word_from_iq window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses.
+  unfold canonical_frame_word_from_iq.
+  rewrite class_invariant_between_iq_regimes_implies_frame_bits_invariant
+    with (window_pairs1 := window_pairs1)
+         (threshold1 := threshold1)
+         (window_pairs2 := window_pairs2)
+         (threshold2 := threshold2)
+         (xs := xs).
+  - reflexivity.
+  - exact Hclasses.
+Qed.
+
+Theorem class_invariant_between_iq_regimes_implies_packet24_invariant :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    canonical_pulse_classes_from_iq window_pairs1 threshold1 xs =
+      canonical_pulse_classes_from_iq window_pairs2 threshold2 xs ->
+    canonical_packet24_from_iq window_pairs1 threshold1 xs =
+      canonical_packet24_from_iq window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses.
+  unfold canonical_packet24_from_iq.
+  rewrite (class_invariant_between_iq_regimes_implies_frame_bits_invariant
+             window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
+  reflexivity.
+Qed.
+
+Theorem class_invariant_between_iq_regimes_implies_descriptor_invariant :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    canonical_pulse_classes_from_iq window_pairs1 threshold1 xs =
+      canonical_pulse_classes_from_iq window_pairs2 threshold2 xs ->
+    family_descriptor_from_iq window_pairs1 threshold1 xs =
+      family_descriptor_from_iq window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses.
+  unfold family_descriptor_from_iq.
+  rewrite Hclasses.
+  rewrite (class_invariant_between_iq_regimes_implies_frame_bits_invariant
+             window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
   reflexivity.
 Qed.
 
@@ -3887,6 +4182,7 @@ Extraction "burst_detector_extracted.ml"
   first_frame_bits_from_tokens
   frame_bits_from_classes
   bits_to_nat
+  packet24_from_bits
   canonical_pulse_runs_from_iq
   canonical_pulse_base_from_iq
   canonical_pulse_classes_from_iq
@@ -3894,6 +4190,8 @@ Extraction "burst_detector_extracted.ml"
   canonical_frame_bits_from_iq
   canonical_frame_word_from_powers
   canonical_frame_word_from_iq
+  canonical_packet24_from_powers
+  canonical_packet24_from_iq
   pulse_parse_certificate_self_consistent
   certify_canonical_pulse_parse_from_iq
   certify_canonical_frame_parse_from_iq.
