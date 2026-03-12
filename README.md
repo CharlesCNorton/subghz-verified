@@ -5,8 +5,15 @@ Formalizing sub-GHz OOK pulse classification.
 This repository is a dual formalization / exploration engine for sub-GHz radio
 experiments predicted by Rocq and common sense, then tested on the bench.
 
-`SubGhzOOKSemantics.v` is the monolithic formalization. The tracked data files
-are the public bench record that the proofs are compared against.
+The formalization is split into four files:
+
+- `SubGhzCore.v`: symbolic pulse, token, bit, and packet semantics
+- `SubGhzFamilies.v`: family laws, sweep predictions, and replay logic
+- `SubGhzObservation.v`: power/IQ observation, certificates, and device-facing theorems
+- `SubGhzExtract.v`: OCaml extraction only
+
+The tracked data files are the public bench record that the proofs are
+compared against.
 
 ## Scope
 
