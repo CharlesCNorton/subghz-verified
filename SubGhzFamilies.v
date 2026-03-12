@@ -29,7 +29,8 @@ Record FamilySemanticTower := {
   tower_object : CanonicalRFObject;
   tower_bits : list bool;
   tower_word : nat;
-  tower_packet24 : Packet24
+  tower_packet24 : Packet24;
+  tower_fields : Packet24FieldView
 }.
 
 Definition family_descriptor_from_runs (rs : Runs) : FamilyDescriptor :=
@@ -43,7 +44,8 @@ Definition semantic_tower_from_runs (rs : Runs) : FamilySemanticTower :=
   {| tower_object := canonical_rf_object_from_runs rs;
      tower_bits := canonical_frame_bits_from_runs rs;
      tower_word := canonical_frame_word_from_runs rs;
-     tower_packet24 := canonical_packet24_from_runs rs |}.
+     tower_packet24 := canonical_packet24_from_runs rs;
+     tower_fields := canonical_packet24_field_view_from_runs rs |}.
 
 Definition tx_family_semantic_tower (base_pattern : Runs) : FamilySemanticTower :=
   semantic_tower_from_runs base_pattern.
@@ -118,6 +120,20 @@ Proof.
   - exact Hactive.
 Qed.
 
+Theorem tx_family_field_view_law :
+  forall base_pattern te,
+    0 < te ->
+    active_run_lengths base_pattern <> [] ->
+    canonical_packet24_field_view_from_runs (tx_family_member base_pattern te) =
+      canonical_packet24_field_view_from_runs base_pattern.
+Proof.
+  intros base_pattern te Hte Hactive.
+  unfold tx_family_member.
+  apply canonical_packet24_field_view_from_runs_scale_invariant.
+  - exact Hte.
+  - exact Hactive.
+Qed.
+
 Theorem tx_family_semantic_tower_law :
   forall base_pattern te,
     0 < te ->
@@ -131,6 +147,7 @@ Proof.
   rewrite tx_family_frame_bits_law by exact Hte || exact Hactive.
   rewrite tx_family_frame_word_law by exact Hte || exact Hactive.
   rewrite tx_family_packet24_law by exact Hte || exact Hactive.
+  rewrite tx_family_field_view_law by exact Hte || exact Hactive.
   reflexivity.
 Qed.
 
@@ -165,6 +182,25 @@ Proof.
     + exact Hactive.
   - symmetry.
     apply tx_family_packet24_law.
+    + exact Hte2.
+    + exact Hactive.
+Qed.
+
+Corollary tx_family_members_share_field_view :
+  forall base_pattern te1 te2,
+    0 < te1 ->
+    0 < te2 ->
+    active_run_lengths base_pattern <> [] ->
+    canonical_packet24_field_view_from_runs (tx_family_member base_pattern te1) =
+      canonical_packet24_field_view_from_runs (tx_family_member base_pattern te2).
+Proof.
+  intros base_pattern te1 te2 Hte1 Hte2 Hactive.
+  transitivity (canonical_packet24_field_view_from_runs base_pattern).
+  - apply tx_family_field_view_law.
+    + exact Hte1.
+    + exact Hactive.
+  - symmetry.
+    apply tx_family_field_view_law.
     + exact Hte2.
     + exact Hactive.
 Qed.
@@ -243,6 +279,12 @@ Definition predicted_tx_family_packets
     : list Packet24 :=
   map (fun te => canonical_packet24_from_runs (tx_family_member base_pattern te)) tes.
 
+Definition predicted_tx_family_field_views
+    (base_pattern : Runs)
+    (tes : list nat)
+    : list Packet24FieldView :=
+  map (fun te => canonical_packet24_field_view_from_runs (tx_family_member base_pattern te)) tes.
+
 Definition predicted_tx_family_towers
     (base_pattern : Runs)
     (tes : list nat)
@@ -259,6 +301,7 @@ Record TxSweepSemanticPrediction := {
   semantic_prediction_bits : list bool;
   semantic_prediction_word : nat;
   semantic_prediction_packet24 : Packet24;
+  semantic_prediction_fields : Packet24FieldView;
   semantic_prediction_bases : list nat
 }.
 
@@ -277,6 +320,7 @@ Definition tx_family_semantic_prediction
      semantic_prediction_bits := canonical_frame_bits_from_runs base_pattern;
      semantic_prediction_word := canonical_frame_word_from_runs base_pattern;
      semantic_prediction_packet24 := canonical_packet24_from_runs base_pattern;
+     semantic_prediction_fields := canonical_packet24_field_view_from_runs base_pattern;
      semantic_prediction_bases := predicted_tx_family_bases base_pattern tes |}.
 
 Theorem predicted_tx_family_objects_constant :
@@ -320,6 +364,21 @@ Proof.
   induction Htes as [|te tes Hte Htes IH]; simpl.
   - reflexivity.
   - rewrite (tx_family_packet24_law base_pattern te Hte Hactive).
+    rewrite IH.
+    reflexivity.
+Qed.
+
+Theorem predicted_tx_family_field_views_constant :
+  forall base_pattern tes,
+    Forall (fun te => 0 < te) tes ->
+    active_run_lengths base_pattern <> [] ->
+    predicted_tx_family_field_views base_pattern tes =
+      repeat (canonical_packet24_field_view_from_runs base_pattern) (length tes).
+Proof.
+  intros base_pattern tes Htes Hactive.
+  induction Htes as [|te tes Hte Htes IH]; simpl.
+  - reflexivity.
+  - rewrite (tx_family_field_view_law base_pattern te Hte Hactive).
     rewrite IH.
     reflexivity.
 Qed.
@@ -430,6 +489,22 @@ Proof.
   intros base_pattern tes Htes Hactive.
   unfold tx_family_semantic_prediction.
   apply predicted_tx_family_packets_constant.
+  - exact Htes.
+  - exact Hactive.
+Qed.
+
+Theorem tx_family_semantic_prediction_fields_sound :
+  forall base_pattern tes,
+    Forall (fun te => 0 < te) tes ->
+    active_run_lengths base_pattern <> [] ->
+    predicted_tx_family_field_views base_pattern tes =
+      repeat
+        (semantic_prediction_fields (tx_family_semantic_prediction base_pattern tes))
+        (length tes).
+Proof.
+  intros base_pattern tes Htes Hactive.
+  unfold tx_family_semantic_prediction.
+  apply predicted_tx_family_field_views_constant.
   - exact Htes.
   - exact Hactive.
 Qed.

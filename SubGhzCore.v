@@ -1187,18 +1187,113 @@ Record Packet24 := {
   packet24_lo : nat
 }.
 
+Record BitFieldSpec := {
+  field_offset : nat;
+  field_width : nat
+}.
+
+Definition field_bits (spec : BitFieldSpec) (xs : list bool) : list bool :=
+  take (field_width spec) (drop (field_offset spec) xs).
+
+Definition field_value (spec : BitFieldSpec) (xs : list bool) : nat :=
+  bits_to_nat (field_bits spec xs).
+
+Definition packet24_hi_byte_field : BitFieldSpec :=
+  {| field_offset := 0; field_width := 8 |}.
+
+Definition packet24_mid_byte_field : BitFieldSpec :=
+  {| field_offset := 8; field_width := 8 |}.
+
+Definition packet24_lo_byte_field : BitFieldSpec :=
+  {| field_offset := 16; field_width := 8 |}.
+
+Definition packet24_prefix12_field : BitFieldSpec :=
+  {| field_offset := 0; field_width := 12 |}.
+
+Definition packet24_suffix12_field : BitFieldSpec :=
+  {| field_offset := 12; field_width := 12 |}.
+
+Definition packet24_nibble0_field : BitFieldSpec :=
+  {| field_offset := 0; field_width := 4 |}.
+
+Definition packet24_nibble1_field : BitFieldSpec :=
+  {| field_offset := 4; field_width := 4 |}.
+
+Definition packet24_nibble2_field : BitFieldSpec :=
+  {| field_offset := 8; field_width := 4 |}.
+
+Definition packet24_nibble3_field : BitFieldSpec :=
+  {| field_offset := 12; field_width := 4 |}.
+
+Definition packet24_nibble4_field : BitFieldSpec :=
+  {| field_offset := 16; field_width := 4 |}.
+
+Definition packet24_nibble5_field : BitFieldSpec :=
+  {| field_offset := 20; field_width := 4 |}.
+
 Definition packet24_from_bits (xs : list bool) : Packet24 :=
   {| packet24_hi := bits_to_nat (take 8 xs);
      packet24_mid := bits_to_nat (take 8 (drop 8 xs));
      packet24_lo := bits_to_nat (take 8 (drop 16 xs)) |}.
 
+Record Packet24ByteView := {
+  packet24_byte0 : nat;
+  packet24_byte1 : nat;
+  packet24_byte2 : nat
+}.
+
+Definition packet24_byte_view_from_bits (xs : list bool) : Packet24ByteView :=
+  {| packet24_byte0 := field_value packet24_hi_byte_field xs;
+     packet24_byte1 := field_value packet24_mid_byte_field xs;
+     packet24_byte2 := field_value packet24_lo_byte_field xs |}.
+
+Record Packet24NibbleView := {
+  packet24_nibble0 : nat;
+  packet24_nibble1 : nat;
+  packet24_nibble2 : nat;
+  packet24_nibble3 : nat;
+  packet24_nibble4 : nat;
+  packet24_nibble5 : nat
+}.
+
+Definition packet24_nibble_view_from_bits (xs : list bool) : Packet24NibbleView :=
+  {| packet24_nibble0 := field_value packet24_nibble0_field xs;
+     packet24_nibble1 := field_value packet24_nibble1_field xs;
+     packet24_nibble2 := field_value packet24_nibble2_field xs;
+     packet24_nibble3 := field_value packet24_nibble3_field xs;
+     packet24_nibble4 := field_value packet24_nibble4_field xs;
+     packet24_nibble5 := field_value packet24_nibble5_field xs |}.
+
+Record Packet24FieldView := {
+  packet24_fields_bytes : Packet24ByteView;
+  packet24_fields_nibbles : Packet24NibbleView;
+  packet24_fields_prefix12 : nat;
+  packet24_fields_suffix12 : nat
+}.
+
+Definition packet24_field_view_from_bits (xs : list bool) : Packet24FieldView :=
+  {| packet24_fields_bytes := packet24_byte_view_from_bits xs;
+     packet24_fields_nibbles := packet24_nibble_view_from_bits xs;
+     packet24_fields_prefix12 := field_value packet24_prefix12_field xs;
+     packet24_fields_suffix12 := field_value packet24_suffix12_field xs |}.
+
 Definition canonical_packet24_from_runs (rs : Runs) : Packet24 :=
   packet24_from_bits (canonical_frame_bits_from_runs rs).
+
+Definition canonical_packet24_byte_view_from_runs (rs : Runs) : Packet24ByteView :=
+  packet24_byte_view_from_bits (canonical_frame_bits_from_runs rs).
+
+Definition canonical_packet24_nibble_view_from_runs (rs : Runs) : Packet24NibbleView :=
+  packet24_nibble_view_from_bits (canonical_frame_bits_from_runs rs).
+
+Definition canonical_packet24_field_view_from_runs (rs : Runs) : Packet24FieldView :=
+  packet24_field_view_from_bits (canonical_frame_bits_from_runs rs).
 
 Record DecodedPacketView := {
   view_bits : list bool;
   view_word : nat;
-  view_packet24 : Packet24
+  view_packet24 : Packet24;
+  view_fields : Packet24FieldView
 }.
 
 Definition decoded_packet_view_from_classes
@@ -1206,7 +1301,8 @@ Definition decoded_packet_view_from_classes
     : DecodedPacketView :=
   {| view_bits := frame_bits_from_classes xs;
      view_word := bits_to_nat (frame_bits_from_classes xs);
-     view_packet24 := packet24_from_bits (frame_bits_from_classes xs) |}.
+     view_packet24 := packet24_from_bits (frame_bits_from_classes xs);
+     view_fields := packet24_field_view_from_bits (frame_bits_from_classes xs) |}.
 
 Definition decoded_packet_view_from_runs
     (rs : Runs)
@@ -1229,6 +1325,50 @@ Theorem classes_of_bits_suffix_packet24_alias :
     bits <> [] ->
     packet24_from_bits (frame_bits_from_classes (classes_of_bits bits ++ suffix1)) =
       packet24_from_bits (frame_bits_from_classes (classes_of_bits bits ++ suffix2)).
+Proof.
+  intros bits suffix1 suffix2 Hbits.
+  rewrite (classes_of_bits_suffix_alias bits suffix1 suffix2 Hbits).
+  reflexivity.
+Qed.
+
+Theorem classes_of_bits_suffix_field_value_alias :
+  forall bits suffix1 suffix2 spec,
+    bits <> [] ->
+    field_value spec (frame_bits_from_classes (classes_of_bits bits ++ suffix1)) =
+      field_value spec (frame_bits_from_classes (classes_of_bits bits ++ suffix2)).
+Proof.
+  intros bits suffix1 suffix2 spec Hbits.
+  rewrite (classes_of_bits_suffix_alias bits suffix1 suffix2 Hbits).
+  reflexivity.
+Qed.
+
+Theorem classes_of_bits_suffix_byte_view_alias :
+  forall bits suffix1 suffix2,
+    bits <> [] ->
+    packet24_byte_view_from_bits (frame_bits_from_classes (classes_of_bits bits ++ suffix1)) =
+      packet24_byte_view_from_bits (frame_bits_from_classes (classes_of_bits bits ++ suffix2)).
+Proof.
+  intros bits suffix1 suffix2 Hbits.
+  rewrite (classes_of_bits_suffix_alias bits suffix1 suffix2 Hbits).
+  reflexivity.
+Qed.
+
+Theorem classes_of_bits_suffix_nibble_view_alias :
+  forall bits suffix1 suffix2,
+    bits <> [] ->
+    packet24_nibble_view_from_bits (frame_bits_from_classes (classes_of_bits bits ++ suffix1)) =
+      packet24_nibble_view_from_bits (frame_bits_from_classes (classes_of_bits bits ++ suffix2)).
+Proof.
+  intros bits suffix1 suffix2 Hbits.
+  rewrite (classes_of_bits_suffix_alias bits suffix1 suffix2 Hbits).
+  reflexivity.
+Qed.
+
+Theorem classes_of_bits_suffix_field_view_alias :
+  forall bits suffix1 suffix2,
+    bits <> [] ->
+    packet24_field_view_from_bits (frame_bits_from_classes (classes_of_bits bits ++ suffix1)) =
+      packet24_field_view_from_bits (frame_bits_from_classes (classes_of_bits bits ++ suffix2)).
 Proof.
   intros bits suffix1 suffix2 Hbits.
   rewrite (classes_of_bits_suffix_alias bits suffix1 suffix2 Hbits).
@@ -1267,6 +1407,30 @@ Proof.
     simpl in Hlen.
     lia.
   - apply classes_of_bits_suffix_view_alias.
+    exact Hbits.
+Qed.
+
+Theorem packet24_field_view_noninjective :
+  forall bits,
+    bits <> ([] : list bool) ->
+    exists xs ys,
+      xs <> ys /\
+      packet24_field_view_from_bits (frame_bits_from_classes xs) =
+        packet24_field_view_from_bits (frame_bits_from_classes ys).
+Proof.
+  intros bits Hbits.
+  exists (classes_of_bits bits ++ [MarkShort]).
+  exists (classes_of_bits bits ++ [MarkShort; MarkShort]).
+  split.
+  - intro Heq.
+    assert (Hlen :
+      length (classes_of_bits bits ++ [MarkShort]) =
+      length (classes_of_bits bits ++ [MarkShort; MarkShort])).
+    { rewrite Heq. reflexivity. }
+    repeat rewrite length_app in Hlen.
+    simpl in Hlen.
+    lia.
+  - apply classes_of_bits_suffix_field_view_alias.
     exact Hbits.
 Qed.
 
@@ -1841,6 +2005,51 @@ Theorem canonical_packet24_from_runs_scale_invariant :
 Proof.
   intros factor rs Hfactor Hactive.
   unfold canonical_packet24_from_runs.
+  rewrite canonical_frame_bits_from_runs_scale_invariant.
+  - reflexivity.
+  - exact Hfactor.
+  - exact Hactive.
+Qed.
+
+Theorem canonical_packet24_byte_view_from_runs_scale_invariant :
+  forall factor rs,
+    0 < factor ->
+    active_run_lengths rs <> [] ->
+    canonical_packet24_byte_view_from_runs (scale_runs factor rs) =
+      canonical_packet24_byte_view_from_runs rs.
+Proof.
+  intros factor rs Hfactor Hactive.
+  unfold canonical_packet24_byte_view_from_runs.
+  rewrite canonical_frame_bits_from_runs_scale_invariant.
+  - reflexivity.
+  - exact Hfactor.
+  - exact Hactive.
+Qed.
+
+Theorem canonical_packet24_nibble_view_from_runs_scale_invariant :
+  forall factor rs,
+    0 < factor ->
+    active_run_lengths rs <> [] ->
+    canonical_packet24_nibble_view_from_runs (scale_runs factor rs) =
+      canonical_packet24_nibble_view_from_runs rs.
+Proof.
+  intros factor rs Hfactor Hactive.
+  unfold canonical_packet24_nibble_view_from_runs.
+  rewrite canonical_frame_bits_from_runs_scale_invariant.
+  - reflexivity.
+  - exact Hfactor.
+  - exact Hactive.
+Qed.
+
+Theorem canonical_packet24_field_view_from_runs_scale_invariant :
+  forall factor rs,
+    0 < factor ->
+    active_run_lengths rs <> [] ->
+    canonical_packet24_field_view_from_runs (scale_runs factor rs) =
+      canonical_packet24_field_view_from_runs rs.
+Proof.
+  intros factor rs Hfactor Hactive.
+  unfold canonical_packet24_field_view_from_runs.
   rewrite canonical_frame_bits_from_runs_scale_invariant.
   - reflexivity.
   - exact Hfactor.

@@ -61,7 +61,12 @@ Extraction "burst_detector_extracted.ml"
   first_frame_bits_from_tokens
   frame_bits_from_classes
   bits_to_nat
+  field_bits
+  field_value
   packet24_from_bits
+  packet24_byte_view_from_bits
+  packet24_nibble_view_from_bits
+  packet24_field_view_from_bits
   canonical_pulse_runs_from_iq
   canonical_pulse_base_from_iq
   canonical_pulse_classes_from_iq
@@ -70,7 +75,13 @@ Extraction "burst_detector_extracted.ml"
   canonical_frame_word_from_powers
   canonical_frame_word_from_iq
   canonical_packet24_from_powers
+  canonical_packet24_byte_view_from_powers
+  canonical_packet24_nibble_view_from_powers
+  canonical_packet24_field_view_from_powers
   canonical_packet24_from_iq
+  canonical_packet24_byte_view_from_iq
+  canonical_packet24_nibble_view_from_iq
+  canonical_packet24_field_view_from_iq
   pulse_parse_certificate_self_consistent
   certify_canonical_pulse_parse_from_iq
   certify_canonical_frame_parse_from_iq.

@@ -353,6 +353,24 @@ Definition canonical_packet24_from_powers
     : Packet24 :=
   packet24_from_bits (canonical_frame_bits_from_powers threshold xs).
 
+Definition canonical_packet24_byte_view_from_powers
+    (threshold : nat)
+    (xs : PowerTrace)
+    : Packet24ByteView :=
+  packet24_byte_view_from_bits (canonical_frame_bits_from_powers threshold xs).
+
+Definition canonical_packet24_nibble_view_from_powers
+    (threshold : nat)
+    (xs : PowerTrace)
+    : Packet24NibbleView :=
+  packet24_nibble_view_from_bits (canonical_frame_bits_from_powers threshold xs).
+
+Definition canonical_packet24_field_view_from_powers
+    (threshold : nat)
+    (xs : PowerTrace)
+    : Packet24FieldView :=
+  packet24_field_view_from_bits (canonical_frame_bits_from_powers threshold xs).
+
 Definition power_within_margin (margin x y : nat) : Prop :=
   x <= y + margin /\ y <= x + margin.
 
@@ -753,6 +771,45 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem canonical_packet24_byte_view_from_powers_scale_invariant :
+  forall factor threshold xs,
+    0 < factor ->
+    canonical_packet24_byte_view_from_powers (factor * threshold) (scale_powers factor xs) =
+      canonical_packet24_byte_view_from_powers threshold xs.
+Proof.
+  intros factor threshold xs Hfactor.
+  unfold canonical_packet24_byte_view_from_powers.
+  rewrite (canonical_frame_bits_from_powers_scale_invariant
+             factor threshold xs Hfactor).
+  reflexivity.
+Qed.
+
+Theorem canonical_packet24_nibble_view_from_powers_scale_invariant :
+  forall factor threshold xs,
+    0 < factor ->
+    canonical_packet24_nibble_view_from_powers (factor * threshold) (scale_powers factor xs) =
+      canonical_packet24_nibble_view_from_powers threshold xs.
+Proof.
+  intros factor threshold xs Hfactor.
+  unfold canonical_packet24_nibble_view_from_powers.
+  rewrite (canonical_frame_bits_from_powers_scale_invariant
+             factor threshold xs Hfactor).
+  reflexivity.
+Qed.
+
+Theorem canonical_packet24_field_view_from_powers_scale_invariant :
+  forall factor threshold xs,
+    0 < factor ->
+    canonical_packet24_field_view_from_powers (factor * threshold) (scale_powers factor xs) =
+      canonical_packet24_field_view_from_powers threshold xs.
+Proof.
+  intros factor threshold xs Hfactor.
+  unfold canonical_packet24_field_view_from_powers.
+  rewrite (canonical_frame_bits_from_powers_scale_invariant
+             factor threshold xs Hfactor).
+  reflexivity.
+Qed.
+
 Theorem canonical_packet24_from_powers_margin_invariant :
   forall threshold margin xs ys,
     power_trace_within_margin margin xs ys ->
@@ -767,6 +824,48 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem canonical_packet24_byte_view_from_powers_margin_invariant :
+  forall threshold margin xs ys,
+    power_trace_within_margin margin xs ys ->
+    power_trace_threshold_stable threshold margin xs ->
+    canonical_packet24_byte_view_from_powers threshold ys =
+      canonical_packet24_byte_view_from_powers threshold xs.
+Proof.
+  intros threshold margin xs ys Hmargin Hstable.
+  unfold canonical_packet24_byte_view_from_powers.
+  rewrite (canonical_frame_bits_from_powers_margin_invariant
+             threshold margin xs ys Hmargin Hstable).
+  reflexivity.
+Qed.
+
+Theorem canonical_packet24_nibble_view_from_powers_margin_invariant :
+  forall threshold margin xs ys,
+    power_trace_within_margin margin xs ys ->
+    power_trace_threshold_stable threshold margin xs ->
+    canonical_packet24_nibble_view_from_powers threshold ys =
+      canonical_packet24_nibble_view_from_powers threshold xs.
+Proof.
+  intros threshold margin xs ys Hmargin Hstable.
+  unfold canonical_packet24_nibble_view_from_powers.
+  rewrite (canonical_frame_bits_from_powers_margin_invariant
+             threshold margin xs ys Hmargin Hstable).
+  reflexivity.
+Qed.
+
+Theorem canonical_packet24_field_view_from_powers_margin_invariant :
+  forall threshold margin xs ys,
+    power_trace_within_margin margin xs ys ->
+    power_trace_threshold_stable threshold margin xs ->
+    canonical_packet24_field_view_from_powers threshold ys =
+      canonical_packet24_field_view_from_powers threshold xs.
+Proof.
+  intros threshold margin xs ys Hmargin Hstable.
+  unfold canonical_packet24_field_view_from_powers.
+  rewrite (canonical_frame_bits_from_powers_margin_invariant
+             threshold margin xs ys Hmargin Hstable).
+  reflexivity.
+Qed.
+
 Theorem canonical_packet24_from_powers_offset_invariant :
   forall offset threshold xs,
     canonical_packet24_from_powers (offset + threshold) (offset_powers offset xs) =
@@ -774,6 +873,39 @@ Theorem canonical_packet24_from_powers_offset_invariant :
 Proof.
   intros offset threshold xs.
   unfold canonical_packet24_from_powers.
+  rewrite canonical_frame_bits_from_powers_offset_invariant.
+  reflexivity.
+Qed.
+
+Theorem canonical_packet24_byte_view_from_powers_offset_invariant :
+  forall offset threshold xs,
+    canonical_packet24_byte_view_from_powers (offset + threshold) (offset_powers offset xs) =
+      canonical_packet24_byte_view_from_powers threshold xs.
+Proof.
+  intros offset threshold xs.
+  unfold canonical_packet24_byte_view_from_powers.
+  rewrite canonical_frame_bits_from_powers_offset_invariant.
+  reflexivity.
+Qed.
+
+Theorem canonical_packet24_nibble_view_from_powers_offset_invariant :
+  forall offset threshold xs,
+    canonical_packet24_nibble_view_from_powers (offset + threshold) (offset_powers offset xs) =
+      canonical_packet24_nibble_view_from_powers threshold xs.
+Proof.
+  intros offset threshold xs.
+  unfold canonical_packet24_nibble_view_from_powers.
+  rewrite canonical_frame_bits_from_powers_offset_invariant.
+  reflexivity.
+Qed.
+
+Theorem canonical_packet24_field_view_from_powers_offset_invariant :
+  forall offset threshold xs,
+    canonical_packet24_field_view_from_powers (offset + threshold) (offset_powers offset xs) =
+      canonical_packet24_field_view_from_powers threshold xs.
+Proof.
+  intros offset threshold xs.
+  unfold canonical_packet24_field_view_from_powers.
   rewrite canonical_frame_bits_from_powers_offset_invariant.
   reflexivity.
 Qed.
@@ -949,6 +1081,24 @@ Definition canonical_packet24_from_iq
     (xs : ByteStream)
     : Packet24 :=
   packet24_from_bits (canonical_frame_bits_from_iq window_pairs threshold xs).
+
+Definition canonical_packet24_byte_view_from_iq
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    : Packet24ByteView :=
+  packet24_byte_view_from_bits (canonical_frame_bits_from_iq window_pairs threshold xs).
+
+Definition canonical_packet24_nibble_view_from_iq
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    : Packet24NibbleView :=
+  packet24_nibble_view_from_bits (canonical_frame_bits_from_iq window_pairs threshold xs).
+
+Definition canonical_packet24_field_view_from_iq
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    : Packet24FieldView :=
+  packet24_field_view_from_bits (canonical_frame_bits_from_iq window_pairs threshold xs).
 
 Definition emitter_class_from_iq
     (window_pairs threshold : nat)
@@ -1211,7 +1361,8 @@ Definition semantic_tower_from_iq
   {| tower_object := canonical_pulse_classes_from_iq window_pairs threshold xs;
      tower_bits := canonical_frame_bits_from_iq window_pairs threshold xs;
      tower_word := canonical_frame_word_from_iq window_pairs threshold xs;
-     tower_packet24 := canonical_packet24_from_iq window_pairs threshold xs |}.
+     tower_packet24 := canonical_packet24_from_iq window_pairs threshold xs;
+     tower_fields := canonical_packet24_field_view_from_iq window_pairs threshold xs |}.
 
 Definition observed_iq_matches_family
     (base_pattern : Runs)
@@ -1260,6 +1411,19 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem observed_iq_matches_family_implies_field_view :
+  forall base_pattern window_pairs threshold xs,
+    observed_iq_matches_family base_pattern window_pairs threshold xs ->
+    canonical_packet24_field_view_from_iq window_pairs threshold xs =
+      canonical_packet24_field_view_from_runs base_pattern.
+Proof.
+  intros base_pattern window_pairs threshold xs Hmatch.
+  unfold canonical_packet24_field_view_from_iq, canonical_packet24_field_view_from_runs.
+  rewrite (observed_iq_matches_family_implies_frame_bits
+             base_pattern window_pairs threshold xs Hmatch).
+  reflexivity.
+Qed.
+
 Theorem observed_iq_matches_family_implies_descriptor :
   forall base_pattern window_pairs threshold xs,
     observed_iq_matches_family base_pattern window_pairs threshold xs ->
@@ -1288,6 +1452,8 @@ Proof.
   rewrite (observed_iq_matches_family_implies_frame_word
              base_pattern window_pairs threshold xs Hmatch).
   rewrite (observed_iq_matches_family_implies_packet24
+             base_pattern window_pairs threshold xs Hmatch).
+  rewrite (observed_iq_matches_family_implies_field_view
              base_pattern window_pairs threshold xs Hmatch).
   reflexivity.
 Qed.
@@ -1331,6 +1497,19 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem frame_bits_invariant_between_iq_regimes_implies_field_view_invariant :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    canonical_frame_bits_from_iq window_pairs1 threshold1 xs =
+      canonical_frame_bits_from_iq window_pairs2 threshold2 xs ->
+    canonical_packet24_field_view_from_iq window_pairs1 threshold1 xs =
+      canonical_packet24_field_view_from_iq window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hbits.
+  unfold canonical_packet24_field_view_from_iq.
+  rewrite Hbits.
+  reflexivity.
+Qed.
+
 Theorem class_invariant_between_iq_regimes_implies_frame_word_invariant :
   forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
     canonical_pulse_classes_from_iq window_pairs1 threshold1 xs =
@@ -1359,6 +1538,20 @@ Theorem class_invariant_between_iq_regimes_implies_packet24_invariant :
 Proof.
   intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses.
   unfold canonical_packet24_from_iq.
+  rewrite (class_invariant_between_iq_regimes_implies_frame_bits_invariant
+             window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
+  reflexivity.
+Qed.
+
+Theorem class_invariant_between_iq_regimes_implies_field_view_invariant :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    canonical_pulse_classes_from_iq window_pairs1 threshold1 xs =
+      canonical_pulse_classes_from_iq window_pairs2 threshold2 xs ->
+    canonical_packet24_field_view_from_iq window_pairs1 threshold1 xs =
+      canonical_packet24_field_view_from_iq window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses.
+  unfold canonical_packet24_field_view_from_iq.
   rewrite (class_invariant_between_iq_regimes_implies_frame_bits_invariant
              window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
   reflexivity.
@@ -1394,6 +1587,8 @@ Proof.
   rewrite (class_invariant_between_iq_regimes_implies_frame_word_invariant
              window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
   rewrite (class_invariant_between_iq_regimes_implies_packet24_invariant
+             window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
+  rewrite (class_invariant_between_iq_regimes_implies_field_view_invariant
              window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
   reflexivity.
 Qed.
