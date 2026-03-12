@@ -1,0 +1,5 @@
+family_id,key,analysis_window_pairs,analysis_threshold,class_digest,frame_bits_count,frame_hex,representative_capture,te_values,notes
+A1B2C3,A1B2C3,20,131072,19f722404f38089b6308894a201adbf2,24,a1b2c3,te400-rep10-433920000.iq,"200;400;600;800",canonical project family
+55AA33,55AA33,20,131072,b23944cd40c832edea40ca156b5455fe,24,55aa33,te400-key55aa33-rep10-433920000.iq,"200;400;600;800",canonical project family
+C0FFEE,C0FFEE,20,131072,f0409e8cb4d2bdaba1fdd093301be576,24,c0ffee,te500-keyc0ffee-rep10-433920000.iq,"250;500;750;1250",theorem-guided project family
+DEAD12,DEAD12,20,131072,a57783a97009fc13b6e255e487f6e7aa,24,dead12,te430-keydead12-rep10-433920000.iq,"250;430;910;1330",theorem-guided project family

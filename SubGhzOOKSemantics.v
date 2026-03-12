@@ -912,6 +912,61 @@ Definition canonical_pulse_base_from_runs (rs : Runs) : nat :=
 Definition canonical_normalized_pulse_classes (rs : Runs) : list PulseClass :=
   normalized_pulse_classes (canonical_runs rs).
 
+Inductive FrameToken :=
+| FrameBitZero
+| FrameBitOne
+| FrameBreak
+| FrameUnknown.
+
+Fixpoint frame_tokens_from_classes (xs : list PulseClass) : list FrameToken :=
+  match xs with
+  | [] => []
+  | GapBreak :: xs' => FrameBreak :: frame_tokens_from_classes xs'
+  | MarkShort :: GapLong :: xs' =>
+      FrameBitZero :: frame_tokens_from_classes xs'
+  | MarkLong :: GapShort :: xs' =>
+      FrameBitOne :: frame_tokens_from_classes xs'
+  | _ :: xs' => FrameUnknown :: frame_tokens_from_classes xs'
+  end.
+
+Fixpoint first_frame_bits_from_tokens_aux
+    (started : bool)
+    (xs : list FrameToken)
+    : list bool :=
+  match xs with
+  | [] => []
+  | FrameBreak :: xs' =>
+      if started then [] else first_frame_bits_from_tokens_aux false xs'
+  | FrameBitZero :: xs' =>
+      false :: first_frame_bits_from_tokens_aux true xs'
+  | FrameBitOne :: xs' =>
+      true :: first_frame_bits_from_tokens_aux true xs'
+  | FrameUnknown :: xs' =>
+      if started then [] else first_frame_bits_from_tokens_aux false xs'
+  end.
+
+Definition first_frame_bits_from_tokens (xs : list FrameToken) : list bool :=
+  first_frame_bits_from_tokens_aux false xs.
+
+Definition frame_bits_from_classes (xs : list PulseClass) : list bool :=
+  first_frame_bits_from_tokens (frame_tokens_from_classes xs).
+
+Definition canonical_frame_bits_from_runs (rs : Runs) : list bool :=
+  frame_bits_from_classes (canonical_normalized_pulse_classes rs).
+
+Fixpoint bits_to_nat_acc (acc : nat) (xs : list bool) : nat :=
+  match xs with
+  | [] => acc
+  | x :: xs' =>
+      bits_to_nat_acc (2 * acc + if x then 1 else 0) xs'
+  end.
+
+Definition bits_to_nat (xs : list bool) : nat :=
+  bits_to_nat_acc 0 xs.
+
+Definition canonical_frame_word_from_runs (rs : Runs) : nat :=
+  bits_to_nat (canonical_frame_bits_from_runs rs).
+
 Theorem pulse_base_from_runs_canonical :
   forall rs,
     canonical_pulse_base_from_runs rs = pulse_base_from_runs rs.
@@ -1399,6 +1454,56 @@ Proof.
     exact Hactive.
 Qed.
 
+Theorem canonical_frame_bits_from_runs_scale_invariant :
+  forall factor rs,
+    0 < factor ->
+    active_run_lengths rs <> [] ->
+    canonical_frame_bits_from_runs (scale_runs factor rs) =
+      canonical_frame_bits_from_runs rs.
+Proof.
+  intros factor rs Hfactor Hactive.
+  unfold canonical_frame_bits_from_runs, frame_bits_from_classes.
+  rewrite canonical_normalized_pulse_classes_scale_invariant.
+  - reflexivity.
+  - exact Hfactor.
+  - exact Hactive.
+Qed.
+
+Corollary canonical_frame_bits_pairwise_scale_equal :
+  forall factor1 factor2 rs,
+    0 < factor1 ->
+    0 < factor2 ->
+    active_run_lengths rs <> [] ->
+    canonical_frame_bits_from_runs (scale_runs factor1 rs) =
+      canonical_frame_bits_from_runs (scale_runs factor2 rs).
+Proof.
+  intros factor1 factor2 rs Hfactor1 Hfactor2 Hactive.
+  transitivity (canonical_frame_bits_from_runs rs).
+  - apply canonical_frame_bits_from_runs_scale_invariant.
+    + exact Hfactor1.
+    + exact Hactive.
+  - symmetry.
+    apply canonical_frame_bits_from_runs_scale_invariant.
+    + exact Hfactor2.
+    + exact Hactive.
+Qed.
+
+Theorem canonical_frame_word_from_runs_scale_invariant :
+  forall factor rs,
+    0 < factor ->
+    active_run_lengths rs <> [] ->
+    canonical_frame_word_from_runs (scale_runs factor rs) =
+      canonical_frame_word_from_runs rs.
+Proof.
+  intros factor rs Hfactor Hactive.
+  unfold canonical_frame_word_from_runs.
+  rewrite canonical_frame_bits_from_runs_scale_invariant.
+  - reflexivity.
+  - exact Hfactor.
+  - exact Hactive.
+Qed.
+
+
 Corollary canonical_normalized_pulse_classes_pairwise_scale_equal :
   forall factor1 factor2 rs,
     0 < factor1 ->
@@ -1494,6 +1599,18 @@ Definition tx_family_member (base_pattern : Runs) (te : nat) : Runs :=
 Definition tx_family_object (base_pattern : Runs) : CanonicalRFObject :=
   canonical_rf_object_from_runs base_pattern.
 
+Record FamilyDescriptor := {
+  family_object : CanonicalRFObject;
+  family_frame_bits : list bool
+}.
+
+Definition family_descriptor_from_runs (rs : Runs) : FamilyDescriptor :=
+  {| family_object := canonical_rf_object_from_runs rs;
+     family_frame_bits := canonical_frame_bits_from_runs rs |}.
+
+Definition tx_family_descriptor (base_pattern : Runs) : FamilyDescriptor :=
+  family_descriptor_from_runs base_pattern.
+
 Theorem tx_family_canonical_object_law :
   forall base_pattern te,
     0 < te ->
@@ -1506,6 +1623,48 @@ Proof.
   apply canonical_normalized_pulse_classes_scale_invariant.
   - exact Hte.
   - exact Hactive.
+Qed.
+
+Theorem tx_family_frame_bits_law :
+  forall base_pattern te,
+    0 < te ->
+    active_run_lengths base_pattern <> [] ->
+    canonical_frame_bits_from_runs (tx_family_member base_pattern te) =
+      canonical_frame_bits_from_runs base_pattern.
+Proof.
+  intros base_pattern te Hte Hactive.
+  unfold tx_family_member.
+  apply canonical_frame_bits_from_runs_scale_invariant.
+  - exact Hte.
+  - exact Hactive.
+Qed.
+
+Theorem tx_family_frame_word_law :
+  forall base_pattern te,
+    0 < te ->
+    active_run_lengths base_pattern <> [] ->
+    canonical_frame_word_from_runs (tx_family_member base_pattern te) =
+      canonical_frame_word_from_runs base_pattern.
+Proof.
+  intros base_pattern te Hte Hactive.
+  unfold tx_family_member.
+  apply canonical_frame_word_from_runs_scale_invariant.
+  - exact Hte.
+  - exact Hactive.
+Qed.
+
+Theorem tx_family_descriptor_law :
+  forall base_pattern te,
+    0 < te ->
+    active_run_lengths base_pattern <> [] ->
+    family_descriptor_from_runs (tx_family_member base_pattern te) =
+      tx_family_descriptor base_pattern.
+Proof.
+  intros base_pattern te Hte Hactive.
+  unfold family_descriptor_from_runs, tx_family_descriptor.
+  rewrite tx_family_canonical_object_law by exact Hte || exact Hactive.
+  rewrite tx_family_frame_bits_law by exact Hte || exact Hactive.
+  reflexivity.
 Qed.
 
 Corollary tx_family_members_share_canonical_object :
@@ -2334,6 +2493,18 @@ Definition canonical_pulse_classes_from_powers
     : list PulseClass :=
   canonical_normalized_pulse_classes (pulse_runs_from_powers threshold xs).
 
+Definition canonical_frame_bits_from_powers
+    (threshold : nat)
+    (xs : PowerTrace)
+    : list bool :=
+  frame_bits_from_classes (canonical_pulse_classes_from_powers threshold xs).
+
+Definition canonical_frame_word_from_powers
+    (threshold : nat)
+    (xs : PowerTrace)
+    : nat :=
+  bits_to_nat (canonical_frame_bits_from_powers threshold xs).
+
 Definition power_within_margin (margin x y : nat) : Prop :=
   x <= y + margin /\ y <= x + margin.
 
@@ -2495,6 +2666,30 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem canonical_frame_bits_from_powers_scale_invariant :
+  forall factor threshold xs,
+    0 < factor ->
+    canonical_frame_bits_from_powers (factor * threshold) (scale_powers factor xs) =
+      canonical_frame_bits_from_powers threshold xs.
+Proof.
+  intros factor threshold xs Hfactor.
+  unfold canonical_frame_bits_from_powers, frame_bits_from_classes.
+  rewrite canonical_pulse_classes_from_powers_scale_invariant by exact Hfactor.
+  reflexivity.
+Qed.
+
+Theorem canonical_frame_word_from_powers_scale_invariant :
+  forall factor threshold xs,
+    0 < factor ->
+    canonical_frame_word_from_powers (factor * threshold) (scale_powers factor xs) =
+      canonical_frame_word_from_powers threshold xs.
+Proof.
+  intros factor threshold xs Hfactor.
+  unfold canonical_frame_word_from_powers.
+  rewrite canonical_frame_bits_from_powers_scale_invariant by exact Hfactor.
+  reflexivity.
+Qed.
+
 Lemma window_above_threshold_margin_invariant :
   forall threshold margin x y,
     power_within_margin margin x y ->
@@ -2592,6 +2787,34 @@ Proof.
   intros threshold margin xs ys Hmargin Hstable.
   unfold canonical_pulse_classes_from_powers.
   rewrite (pulse_runs_from_powers_margin_invariant
+             threshold margin xs ys Hmargin Hstable).
+  reflexivity.
+Qed.
+
+Theorem canonical_frame_bits_from_powers_margin_invariant :
+  forall threshold margin xs ys,
+    power_trace_within_margin margin xs ys ->
+    power_trace_threshold_stable threshold margin xs ->
+    canonical_frame_bits_from_powers threshold ys =
+      canonical_frame_bits_from_powers threshold xs.
+Proof.
+  intros threshold margin xs ys Hmargin Hstable.
+  unfold canonical_frame_bits_from_powers, frame_bits_from_classes.
+  rewrite (canonical_pulse_classes_from_powers_margin_invariant
+             threshold margin xs ys Hmargin Hstable).
+  reflexivity.
+Qed.
+
+Theorem canonical_frame_word_from_powers_margin_invariant :
+  forall threshold margin xs ys,
+    power_trace_within_margin margin xs ys ->
+    power_trace_threshold_stable threshold margin xs ->
+    canonical_frame_word_from_powers threshold ys =
+      canonical_frame_word_from_powers threshold xs.
+Proof.
+  intros threshold margin xs ys Hmargin Hstable.
+  unfold canonical_frame_word_from_powers.
+  rewrite (canonical_frame_bits_from_powers_margin_invariant
              threshold margin xs ys Hmargin Hstable).
   reflexivity.
 Qed.
@@ -2750,6 +2973,18 @@ Definition canonical_pulse_classes_from_iq
     : list PulseClass :=
   canonical_normalized_pulse_classes (pulse_runs_from_iq window_pairs threshold xs).
 
+Definition canonical_frame_bits_from_iq
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    : list bool :=
+  frame_bits_from_classes (canonical_pulse_classes_from_iq window_pairs threshold xs).
+
+Definition canonical_frame_word_from_iq
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    : nat :=
+  bits_to_nat (canonical_frame_bits_from_iq window_pairs threshold xs).
+
 Definition emitter_class_from_iq
     (window_pairs threshold : nat)
     (xs : ByteStream)
@@ -2807,6 +3042,11 @@ Record PulseParseCertificate := {
   certificate_classes : list PulseClass
 }.
 
+Record FrameParseCertificate := {
+  frame_certificate_pulse : PulseParseCertificate;
+  frame_certificate_bits : list bool
+}.
+
 Definition pulse_parse_certificate_self_consistent
     (cert : PulseParseCertificate)
     : bool :=
@@ -2839,6 +3079,15 @@ Definition certify_canonical_pulse_parse_from_iq
      certificate_base := base;
      certificate_classes := classes |}.
 
+Definition certify_canonical_frame_parse_from_iq
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    : FrameParseCertificate :=
+  let pulse_cert := certify_canonical_pulse_parse_from_iq window_pairs threshold xs in
+  {| frame_certificate_pulse := pulse_cert;
+     frame_certificate_bits :=
+       canonical_frame_bits_from_iq window_pairs threshold xs |}.
+
 Definition pulse_parse_certificate_valid
     (window_pairs threshold : nat)
     (xs : ByteStream)
@@ -2857,6 +3106,16 @@ Definition pulse_parse_certificate_valid
   certificate_classes cert =
     canonical_pulse_classes_from_iq window_pairs threshold xs /\
   pulse_parse_certificate_self_consistent cert = true.
+
+Definition frame_parse_certificate_valid
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    (cert : FrameParseCertificate)
+    : Prop :=
+  pulse_parse_certificate_valid
+    window_pairs threshold xs (frame_certificate_pulse cert) /\
+  frame_certificate_bits cert =
+    canonical_frame_bits_from_iq window_pairs threshold xs.
 
 Theorem first_dense_iq_window_sound :
   forall window_pairs span threshold min_active xs idx,
@@ -2970,6 +3229,25 @@ Proof.
   unfold canonical_pulse_classes_from_iq, canonical_pulse_runs_from_iq.
   unfold canonical_normalized_pulse_classes, normalized_pulse_classes.
   rewrite classify_runs_with_base_length.
+  reflexivity.
+Qed.
+
+Theorem canonical_frame_bits_from_iq_eq :
+  forall window_pairs threshold xs,
+    canonical_frame_bits_from_iq window_pairs threshold xs =
+      frame_bits_from_classes
+        (canonical_pulse_classes_from_iq window_pairs threshold xs).
+Proof.
+  intros window_pairs threshold xs.
+  reflexivity.
+Qed.
+
+Theorem canonical_frame_word_from_iq_eq :
+  forall window_pairs threshold xs,
+    canonical_frame_word_from_iq window_pairs threshold xs =
+      bits_to_nat (canonical_frame_bits_from_iq window_pairs threshold xs).
+Proof.
+  intros window_pairs threshold xs.
   reflexivity.
 Qed.
 
@@ -3141,6 +3419,24 @@ Proof.
   - destruct x; simpl; rewrite IH; reflexivity.
 Qed.
 
+Fixpoint bool_list_eqb (xs ys : list bool) : bool :=
+  match xs, ys with
+  | [], [] => true
+  | x :: xs', y :: ys' => Bool.eqb x y && bool_list_eqb xs' ys'
+  | _, _ => false
+  end.
+
+Lemma bool_list_eqb_refl :
+  forall xs,
+    bool_list_eqb xs xs = true.
+Proof.
+  induction xs as [|x xs IH]; simpl.
+  - reflexivity.
+  - rewrite Bool.eqb_reflx.
+    rewrite IH.
+    reflexivity.
+Qed.
+
 Record ObservedFrame := {
   observed_class : EmitterClass;
   observed_counter : nat
@@ -3148,12 +3444,48 @@ Record ObservedFrame := {
 
 Definition SecurityState := list ObservedFrame.
 
+Record ObservedDecodedFrame := {
+  observed_bits : list bool;
+  observed_bits_counter : nat
+}.
+
+Definition DecodedSecurityState := list ObservedDecodedFrame.
+
 Definition option_max (x y : option nat) : option nat :=
   match x, y with
   | None, z => z
   | z, None => z
   | Some a, Some b => Some (Nat.max a b)
   end.
+
+Fixpoint max_counter_for_bits
+    (bits : list bool)
+    (state : DecodedSecurityState)
+    : option nat :=
+  match state with
+  | [] => None
+  | frame :: state' =>
+      let rest := max_counter_for_bits bits state' in
+      if bool_list_eqb bits (observed_bits frame) then
+        option_max (Some (observed_bits_counter frame)) rest
+      else
+        rest
+  end.
+
+Definition decoded_frame_fresh
+    (state : DecodedSecurityState)
+    (frame : ObservedDecodedFrame)
+    : bool :=
+  match max_counter_for_bits (observed_bits frame) state with
+  | None => true
+  | Some max_seen => Nat.ltb max_seen (observed_bits_counter frame)
+  end.
+
+Definition record_decoded_frame
+    (state : DecodedSecurityState)
+    (frame : ObservedDecodedFrame)
+    : DecodedSecurityState :=
+  frame :: state.
 
 Fixpoint max_counter_for_class
     (cls : EmitterClass)
@@ -3197,6 +3529,20 @@ Proof.
   reflexivity.
 Qed.
 
+Lemma max_counter_for_bits_record_same :
+  forall bits ctr state,
+    max_counter_for_bits bits
+      (record_decoded_frame state
+         {| observed_bits := bits; observed_bits_counter := ctr |}) =
+      option_max (Some ctr) (max_counter_for_bits bits state).
+Proof.
+  intros bits ctr state.
+  unfold record_decoded_frame.
+  simpl.
+  rewrite bool_list_eqb_refl.
+  reflexivity.
+Qed.
+
 Lemma max_counter_for_class_record_different :
   forall cls cls' ctr state,
     pulse_class_list_eqb cls cls' = false ->
@@ -3206,6 +3552,21 @@ Lemma max_counter_for_class_record_different :
 Proof.
   intros cls cls' ctr state Hneq.
   unfold record_frame.
+  simpl.
+  rewrite Hneq.
+  reflexivity.
+Qed.
+
+Lemma max_counter_for_bits_record_different :
+  forall bits bits' ctr state,
+    bool_list_eqb bits bits' = false ->
+    max_counter_for_bits bits
+      (record_decoded_frame state
+         {| observed_bits := bits'; observed_bits_counter := ctr |}) =
+      max_counter_for_bits bits state.
+Proof.
+  intros bits bits' ctr state Hneq.
+  unfold record_decoded_frame.
   simpl.
   rewrite Hneq.
   reflexivity.
@@ -3223,6 +3584,19 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem unseen_bits_are_fresh :
+  forall bits ctr state,
+    max_counter_for_bits bits state = None ->
+    decoded_frame_fresh
+      state {| observed_bits := bits; observed_bits_counter := ctr |} = true.
+Proof.
+  intros bits ctr state Hnone.
+  unfold decoded_frame_fresh.
+  simpl.
+  rewrite Hnone.
+  reflexivity.
+Qed.
+
 Theorem greater_counter_is_fresh :
   forall cls ctr state max_seen,
     max_counter_for_class cls state = Some max_seen ->
@@ -3231,6 +3605,21 @@ Theorem greater_counter_is_fresh :
 Proof.
   intros cls ctr state max_seen Hmax Hlt.
   unfold frame_fresh.
+  simpl.
+  rewrite Hmax.
+  apply Nat.ltb_lt.
+  exact Hlt.
+Qed.
+
+Theorem greater_counter_bits_are_fresh :
+  forall bits ctr state max_seen,
+    max_counter_for_bits bits state = Some max_seen ->
+    max_seen < ctr ->
+    decoded_frame_fresh
+      state {| observed_bits := bits; observed_bits_counter := ctr |} = true.
+Proof.
+  intros bits ctr state max_seen Hmax Hlt.
+  unfold decoded_frame_fresh.
   simpl.
   rewrite Hmax.
   apply Nat.ltb_lt.
@@ -3268,6 +3657,25 @@ Proof.
     lia.
 Qed.
 
+Theorem exact_decoded_replay_rejected :
+  forall bits ctr state,
+    decoded_frame_fresh
+      (record_decoded_frame state
+         {| observed_bits := bits; observed_bits_counter := ctr |})
+      {| observed_bits := bits; observed_bits_counter := ctr |} = false.
+Proof.
+  intros bits ctr state.
+  unfold decoded_frame_fresh, record_decoded_frame.
+  simpl.
+  rewrite bool_list_eqb_refl.
+  simpl.
+  destruct (max_counter_for_bits bits state) as [max_seen|] eqn:Hmax; simpl.
+  - apply Nat.ltb_ge.
+    apply Nat.le_max_l.
+  - apply Nat.ltb_ge.
+    lia.
+Qed.
+
 Theorem recorded_frame_rejects_same_or_lower_counter :
   forall cls ctr ctr' state,
     ctr' <= ctr ->
@@ -3280,6 +3688,28 @@ Proof.
   rewrite max_counter_for_class_record_same.
   simpl.
   destruct (max_counter_for_class cls state) as [max_seen|] eqn:Hmax; simpl.
+  - apply Nat.ltb_ge.
+    eapply Nat.le_trans.
+    + exact Hle.
+    + apply Nat.le_max_l.
+  - apply Nat.ltb_ge.
+    exact Hle.
+Qed.
+
+Theorem recorded_decoded_frame_rejects_same_or_lower_counter :
+  forall bits ctr ctr' state,
+    ctr' <= ctr ->
+    decoded_frame_fresh
+      (record_decoded_frame state
+         {| observed_bits := bits; observed_bits_counter := ctr |})
+      {| observed_bits := bits; observed_bits_counter := ctr' |} = false.
+Proof.
+  intros bits ctr ctr' state Hle.
+  unfold decoded_frame_fresh, record_decoded_frame.
+  simpl.
+  rewrite bool_list_eqb_refl.
+  simpl.
+  destruct (max_counter_for_bits bits state) as [max_seen|] eqn:Hmax; simpl.
   - apply Nat.ltb_ge.
     eapply Nat.le_trans.
     + exact Hle.
@@ -3322,6 +3752,21 @@ Proof.
   unfold certify_canonical_pulse_parse_from_iq.
   repeat split; try reflexivity.
   apply certify_canonical_pulse_parse_from_iq_self_consistent.
+Qed.
+
+Theorem certify_canonical_frame_parse_from_iq_valid :
+  forall window_pairs threshold xs,
+    frame_parse_certificate_valid
+      window_pairs
+      threshold
+      xs
+      (certify_canonical_frame_parse_from_iq window_pairs threshold xs).
+Proof.
+  intros window_pairs threshold xs.
+  unfold frame_parse_certificate_valid.
+  split.
+  - apply certify_canonical_pulse_parse_from_iq_valid.
+  - reflexivity.
 Qed.
 
 Example dense_window_positive_example :
@@ -3438,8 +3883,17 @@ Extraction "burst_detector_extracted.ml"
   pulse_classes_from_iq
   pulse_class_eqb
   pulse_class_list_eqb
+  frame_tokens_from_classes
+  first_frame_bits_from_tokens
+  frame_bits_from_classes
+  bits_to_nat
   canonical_pulse_runs_from_iq
   canonical_pulse_base_from_iq
   canonical_pulse_classes_from_iq
+  canonical_frame_bits_from_powers
+  canonical_frame_bits_from_iq
+  canonical_frame_word_from_powers
+  canonical_frame_word_from_iq
   pulse_parse_certificate_self_consistent
-  certify_canonical_pulse_parse_from_iq.
+  certify_canonical_pulse_parse_from_iq
+  certify_canonical_frame_parse_from_iq.
