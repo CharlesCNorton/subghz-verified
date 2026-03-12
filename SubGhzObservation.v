@@ -371,6 +371,33 @@ Definition canonical_packet24_field_view_from_powers
     : Packet24FieldView :=
   packet24_field_view_from_bits (canonical_frame_bits_from_powers threshold xs).
 
+Definition canonical_field_counter_view_from_powers
+    (schema : CounterSchema)
+    (threshold : nat)
+    (xs : PowerTrace)
+    : FieldCounterView :=
+  field_counter_view_from_bits schema (canonical_frame_bits_from_powers threshold xs).
+
+Definition canonical_hi16_lo8_counter_view_from_powers
+    (threshold : nat)
+    (xs : PowerTrace)
+    : FieldCounterView :=
+  canonical_field_counter_view_from_powers hi16_lo8_counter_schema threshold xs.
+
+Definition canonical_prefix12_suffix12_counter_view_from_powers
+    (threshold : nat)
+    (xs : PowerTrace)
+    : FieldCounterView :=
+  canonical_field_counter_view_from_powers prefix12_suffix12_counter_schema threshold xs.
+
+Definition canonical_field_counter_fresh_from_powers
+    (schema : CounterSchema)
+    (state : FieldCounterState)
+    (threshold : nat)
+    (xs : PowerTrace)
+    : bool :=
+  field_counter_fresh state (canonical_field_counter_view_from_powers schema threshold xs).
+
 Definition power_within_margin (margin x y : nat) : Prop :=
   x <= y + margin /\ y <= x + margin.
 
@@ -810,6 +837,19 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem canonical_field_counter_view_from_powers_scale_invariant :
+  forall schema factor threshold xs,
+    0 < factor ->
+    canonical_field_counter_view_from_powers schema (factor * threshold) (scale_powers factor xs) =
+      canonical_field_counter_view_from_powers schema threshold xs.
+Proof.
+  intros schema factor threshold xs Hfactor.
+  unfold canonical_field_counter_view_from_powers.
+  rewrite (canonical_frame_bits_from_powers_scale_invariant
+             factor threshold xs Hfactor).
+  reflexivity.
+Qed.
+
 Theorem canonical_packet24_from_powers_margin_invariant :
   forall threshold margin xs ys,
     power_trace_within_margin margin xs ys ->
@@ -866,6 +906,20 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem canonical_field_counter_view_from_powers_margin_invariant :
+  forall schema threshold margin xs ys,
+    power_trace_within_margin margin xs ys ->
+    power_trace_threshold_stable threshold margin xs ->
+    canonical_field_counter_view_from_powers schema threshold ys =
+      canonical_field_counter_view_from_powers schema threshold xs.
+Proof.
+  intros schema threshold margin xs ys Hmargin Hstable.
+  unfold canonical_field_counter_view_from_powers.
+  rewrite (canonical_frame_bits_from_powers_margin_invariant
+             threshold margin xs ys Hmargin Hstable).
+  reflexivity.
+Qed.
+
 Theorem canonical_packet24_from_powers_offset_invariant :
   forall offset threshold xs,
     canonical_packet24_from_powers (offset + threshold) (offset_powers offset xs) =
@@ -906,6 +960,17 @@ Theorem canonical_packet24_field_view_from_powers_offset_invariant :
 Proof.
   intros offset threshold xs.
   unfold canonical_packet24_field_view_from_powers.
+  rewrite canonical_frame_bits_from_powers_offset_invariant.
+  reflexivity.
+Qed.
+
+Theorem canonical_field_counter_view_from_powers_offset_invariant :
+  forall schema offset threshold xs,
+    canonical_field_counter_view_from_powers schema (offset + threshold) (offset_powers offset xs) =
+      canonical_field_counter_view_from_powers schema threshold xs.
+Proof.
+  intros schema offset threshold xs.
+  unfold canonical_field_counter_view_from_powers.
   rewrite canonical_frame_bits_from_powers_offset_invariant.
   reflexivity.
 Qed.
@@ -1099,6 +1164,34 @@ Definition canonical_packet24_field_view_from_iq
     (xs : ByteStream)
     : Packet24FieldView :=
   packet24_field_view_from_bits (canonical_frame_bits_from_iq window_pairs threshold xs).
+
+Definition canonical_field_counter_view_from_iq
+    (schema : CounterSchema)
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    : FieldCounterView :=
+  field_counter_view_from_bits schema (canonical_frame_bits_from_iq window_pairs threshold xs).
+
+Definition canonical_hi16_lo8_counter_view_from_iq
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    : FieldCounterView :=
+  canonical_field_counter_view_from_iq hi16_lo8_counter_schema window_pairs threshold xs.
+
+Definition canonical_prefix12_suffix12_counter_view_from_iq
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    : FieldCounterView :=
+  canonical_field_counter_view_from_iq prefix12_suffix12_counter_schema window_pairs threshold xs.
+
+Definition canonical_field_counter_fresh_from_iq
+    (schema : CounterSchema)
+    (state : FieldCounterState)
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    : bool :=
+  field_counter_fresh state
+    (canonical_field_counter_view_from_iq schema window_pairs threshold xs).
 
 Definition emitter_class_from_iq
     (window_pairs threshold : nat)
@@ -1424,6 +1517,19 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem observed_iq_matches_family_implies_counter_view :
+  forall schema base_pattern window_pairs threshold xs,
+    observed_iq_matches_family base_pattern window_pairs threshold xs ->
+    canonical_field_counter_view_from_iq schema window_pairs threshold xs =
+      canonical_field_counter_view_from_runs schema base_pattern.
+Proof.
+  intros schema base_pattern window_pairs threshold xs Hmatch.
+  unfold canonical_field_counter_view_from_iq, canonical_field_counter_view_from_runs.
+  rewrite (observed_iq_matches_family_implies_frame_bits
+             base_pattern window_pairs threshold xs Hmatch).
+  reflexivity.
+Qed.
+
 Theorem observed_iq_matches_family_implies_descriptor :
   forall base_pattern window_pairs threshold xs,
     observed_iq_matches_family base_pattern window_pairs threshold xs ->
@@ -1510,6 +1616,19 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem frame_bits_invariant_between_iq_regimes_implies_counter_view_invariant :
+  forall schema window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    canonical_frame_bits_from_iq window_pairs1 threshold1 xs =
+      canonical_frame_bits_from_iq window_pairs2 threshold2 xs ->
+    canonical_field_counter_view_from_iq schema window_pairs1 threshold1 xs =
+      canonical_field_counter_view_from_iq schema window_pairs2 threshold2 xs.
+Proof.
+  intros schema window_pairs1 threshold1 window_pairs2 threshold2 xs Hbits.
+  unfold canonical_field_counter_view_from_iq.
+  rewrite Hbits.
+  reflexivity.
+Qed.
+
 Theorem class_invariant_between_iq_regimes_implies_frame_word_invariant :
   forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
     canonical_pulse_classes_from_iq window_pairs1 threshold1 xs =
@@ -1552,6 +1671,20 @@ Theorem class_invariant_between_iq_regimes_implies_field_view_invariant :
 Proof.
   intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses.
   unfold canonical_packet24_field_view_from_iq.
+  rewrite (class_invariant_between_iq_regimes_implies_frame_bits_invariant
+             window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
+  reflexivity.
+Qed.
+
+Theorem class_invariant_between_iq_regimes_implies_counter_view_invariant :
+  forall schema window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    canonical_pulse_classes_from_iq window_pairs1 threshold1 xs =
+      canonical_pulse_classes_from_iq window_pairs2 threshold2 xs ->
+    canonical_field_counter_view_from_iq schema window_pairs1 threshold1 xs =
+      canonical_field_counter_view_from_iq schema window_pairs2 threshold2 xs.
+Proof.
+  intros schema window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses.
+  unfold canonical_field_counter_view_from_iq.
   rewrite (class_invariant_between_iq_regimes_implies_frame_bits_invariant
              window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
   reflexivity.

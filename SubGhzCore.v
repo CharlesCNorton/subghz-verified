@@ -1204,6 +1204,9 @@ Definition packet24_hi_byte_field : BitFieldSpec :=
 Definition packet24_mid_byte_field : BitFieldSpec :=
   {| field_offset := 8; field_width := 8 |}.
 
+Definition packet24_hi16_field : BitFieldSpec :=
+  {| field_offset := 0; field_width := 16 |}.
+
 Definition packet24_lo_byte_field : BitFieldSpec :=
   {| field_offset := 16; field_width := 8 |}.
 
@@ -1277,6 +1280,43 @@ Definition packet24_field_view_from_bits (xs : list bool) : Packet24FieldView :=
      packet24_fields_prefix12 := field_value packet24_prefix12_field xs;
      packet24_fields_suffix12 := field_value packet24_suffix12_field xs |}.
 
+Record CounterSchema := {
+  counter_schema_key : BitFieldSpec;
+  counter_schema_value : BitFieldSpec
+}.
+
+Definition hi16_lo8_counter_schema : CounterSchema :=
+  {| counter_schema_key := packet24_hi16_field;
+     counter_schema_value := packet24_lo_byte_field |}.
+
+Definition prefix12_suffix12_counter_schema : CounterSchema :=
+  {| counter_schema_key := packet24_prefix12_field;
+     counter_schema_value := packet24_suffix12_field |}.
+
+Record FieldCounterView := {
+  field_counter_key : nat;
+  field_counter_value : nat
+}.
+
+Definition field_counter_view_from_bits
+    (schema : CounterSchema)
+    (xs : list bool)
+    : FieldCounterView :=
+  {| field_counter_key := field_value (counter_schema_key schema) xs;
+     field_counter_value := field_value (counter_schema_value schema) xs |}.
+
+Definition hi16_lo8_counter_view_from_bits (xs : list bool) : FieldCounterView :=
+  field_counter_view_from_bits hi16_lo8_counter_schema xs.
+
+Definition prefix12_suffix12_counter_view_from_bits
+    (xs : list bool)
+    : FieldCounterView :=
+  field_counter_view_from_bits prefix12_suffix12_counter_schema xs.
+
+Definition field_counter_step (older newer : FieldCounterView) : Prop :=
+  field_counter_key older = field_counter_key newer /\
+  field_counter_value newer = S (field_counter_value older).
+
 Definition canonical_packet24_from_runs (rs : Runs) : Packet24 :=
   packet24_from_bits (canonical_frame_bits_from_runs rs).
 
@@ -1288,6 +1328,22 @@ Definition canonical_packet24_nibble_view_from_runs (rs : Runs) : Packet24Nibble
 
 Definition canonical_packet24_field_view_from_runs (rs : Runs) : Packet24FieldView :=
   packet24_field_view_from_bits (canonical_frame_bits_from_runs rs).
+
+Definition canonical_field_counter_view_from_runs
+    (schema : CounterSchema)
+    (rs : Runs)
+    : FieldCounterView :=
+  field_counter_view_from_bits schema (canonical_frame_bits_from_runs rs).
+
+Definition canonical_hi16_lo8_counter_view_from_runs
+    (rs : Runs)
+    : FieldCounterView :=
+  canonical_field_counter_view_from_runs hi16_lo8_counter_schema rs.
+
+Definition canonical_prefix12_suffix12_counter_view_from_runs
+    (rs : Runs)
+    : FieldCounterView :=
+  canonical_field_counter_view_from_runs prefix12_suffix12_counter_schema rs.
 
 Record DecodedPacketView := {
   view_bits : list bool;
@@ -1375,6 +1431,19 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem classes_of_bits_suffix_counter_view_alias :
+  forall bits suffix1 suffix2 schema,
+    bits <> [] ->
+    field_counter_view_from_bits schema
+      (frame_bits_from_classes (classes_of_bits bits ++ suffix1)) =
+    field_counter_view_from_bits schema
+      (frame_bits_from_classes (classes_of_bits bits ++ suffix2)).
+Proof.
+  intros bits suffix1 suffix2 schema Hbits.
+  rewrite (classes_of_bits_suffix_alias bits suffix1 suffix2 Hbits).
+  reflexivity.
+Qed.
+
 Theorem classes_of_bits_suffix_view_alias :
   forall bits suffix1 suffix2,
     bits <> [] ->
@@ -1431,6 +1500,30 @@ Proof.
     simpl in Hlen.
     lia.
   - apply classes_of_bits_suffix_field_view_alias.
+    exact Hbits.
+Qed.
+
+Theorem field_counter_view_noninjective :
+  forall bits schema,
+    bits <> ([] : list bool) ->
+    exists xs ys,
+      xs <> ys /\
+      field_counter_view_from_bits schema (frame_bits_from_classes xs) =
+        field_counter_view_from_bits schema (frame_bits_from_classes ys).
+Proof.
+  intros bits schema Hbits.
+  exists (classes_of_bits bits ++ [MarkShort]).
+  exists (classes_of_bits bits ++ [MarkShort; MarkShort]).
+  split.
+  - intro Heq.
+    assert (Hlen :
+      length (classes_of_bits bits ++ [MarkShort]) =
+      length (classes_of_bits bits ++ [MarkShort; MarkShort])).
+    { rewrite Heq. reflexivity. }
+    repeat rewrite length_app in Hlen.
+    simpl in Hlen.
+    lia.
+  - apply classes_of_bits_suffix_counter_view_alias.
     exact Hbits.
 Qed.
 
@@ -2050,6 +2143,21 @@ Theorem canonical_packet24_field_view_from_runs_scale_invariant :
 Proof.
   intros factor rs Hfactor Hactive.
   unfold canonical_packet24_field_view_from_runs.
+  rewrite canonical_frame_bits_from_runs_scale_invariant.
+  - reflexivity.
+  - exact Hfactor.
+  - exact Hactive.
+Qed.
+
+Theorem canonical_field_counter_view_from_runs_scale_invariant :
+  forall factor schema rs,
+    0 < factor ->
+    active_run_lengths rs <> [] ->
+    canonical_field_counter_view_from_runs schema (scale_runs factor rs) =
+      canonical_field_counter_view_from_runs schema rs.
+Proof.
+  intros factor schema rs Hfactor Hactive.
+  unfold canonical_field_counter_view_from_runs.
   rewrite canonical_frame_bits_from_runs_scale_invariant.
   - reflexivity.
   - exact Hfactor.

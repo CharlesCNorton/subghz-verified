@@ -134,6 +134,20 @@ Proof.
   - exact Hactive.
 Qed.
 
+Theorem tx_family_counter_view_law :
+  forall schema base_pattern te,
+    0 < te ->
+    active_run_lengths base_pattern <> [] ->
+    canonical_field_counter_view_from_runs schema (tx_family_member base_pattern te) =
+      canonical_field_counter_view_from_runs schema base_pattern.
+Proof.
+  intros schema base_pattern te Hte Hactive.
+  unfold tx_family_member.
+  apply canonical_field_counter_view_from_runs_scale_invariant.
+  - exact Hte.
+  - exact Hactive.
+Qed.
+
 Theorem tx_family_semantic_tower_law :
   forall base_pattern te,
     0 < te ->
@@ -201,6 +215,25 @@ Proof.
     + exact Hactive.
   - symmetry.
     apply tx_family_field_view_law.
+    + exact Hte2.
+    + exact Hactive.
+Qed.
+
+Corollary tx_family_members_share_counter_view :
+  forall schema base_pattern te1 te2,
+    0 < te1 ->
+    0 < te2 ->
+    active_run_lengths base_pattern <> [] ->
+    canonical_field_counter_view_from_runs schema (tx_family_member base_pattern te1) =
+      canonical_field_counter_view_from_runs schema (tx_family_member base_pattern te2).
+Proof.
+  intros schema base_pattern te1 te2 Hte1 Hte2 Hactive.
+  transitivity (canonical_field_counter_view_from_runs schema base_pattern).
+  - apply tx_family_counter_view_law.
+    + exact Hte1.
+    + exact Hactive.
+  - symmetry.
+    apply tx_family_counter_view_law.
     + exact Hte2.
     + exact Hactive.
 Qed.
@@ -284,6 +317,13 @@ Definition predicted_tx_family_field_views
     (tes : list nat)
     : list Packet24FieldView :=
   map (fun te => canonical_packet24_field_view_from_runs (tx_family_member base_pattern te)) tes.
+
+Definition predicted_tx_family_counter_views
+    (schema : CounterSchema)
+    (base_pattern : Runs)
+    (tes : list nat)
+    : list FieldCounterView :=
+  map (fun te => canonical_field_counter_view_from_runs schema (tx_family_member base_pattern te)) tes.
 
 Definition predicted_tx_family_towers
     (base_pattern : Runs)
@@ -379,6 +419,21 @@ Proof.
   induction Htes as [|te tes Hte Htes IH]; simpl.
   - reflexivity.
   - rewrite (tx_family_field_view_law base_pattern te Hte Hactive).
+    rewrite IH.
+    reflexivity.
+Qed.
+
+Theorem predicted_tx_family_counter_views_constant :
+  forall schema base_pattern tes,
+    Forall (fun te => 0 < te) tes ->
+    active_run_lengths base_pattern <> [] ->
+    predicted_tx_family_counter_views schema base_pattern tes =
+      repeat (canonical_field_counter_view_from_runs schema base_pattern) (length tes).
+Proof.
+  intros schema base_pattern tes Htes Hactive.
+  induction Htes as [|te tes Hte Htes IH]; simpl.
+  - reflexivity.
+  - rewrite (tx_family_counter_view_law schema base_pattern te Hte Hactive).
     rewrite IH.
     reflexivity.
 Qed.
@@ -922,6 +977,211 @@ Definition option_max (x y : option nat) : option nat :=
   | z, None => z
   | Some a, Some b => Some (Nat.max a b)
   end.
+
+Definition FieldCounterState := list FieldCounterView.
+
+Fixpoint max_counter_for_key
+    (key : nat)
+    (state : FieldCounterState)
+    : option nat :=
+  match state with
+  | [] => None
+  | view :: state' =>
+      let rest := max_counter_for_key key state' in
+      if Nat.eqb key (field_counter_key view) then
+        option_max (Some (field_counter_value view)) rest
+      else
+        rest
+  end.
+
+Definition field_counter_fresh
+    (state : FieldCounterState)
+    (view : FieldCounterView)
+    : bool :=
+  match max_counter_for_key (field_counter_key view) state with
+  | None => true
+  | Some max_seen => Nat.ltb max_seen (field_counter_value view)
+  end.
+
+Definition record_field_counter_view
+    (state : FieldCounterState)
+    (view : FieldCounterView)
+    : FieldCounterState :=
+  view :: state.
+
+Definition decoded_field_counter_step
+    (schema : CounterSchema)
+    (bits1 bits2 : list bool)
+    : Prop :=
+  field_counter_step
+    (field_counter_view_from_bits schema bits1)
+    (field_counter_view_from_bits schema bits2).
+
+Definition decoded_field_counter_fresh
+    (schema : CounterSchema)
+    (state : FieldCounterState)
+    (bits : list bool)
+    : bool :=
+  field_counter_fresh state (field_counter_view_from_bits schema bits).
+
+Definition canonical_field_counter_fresh_from_runs
+    (schema : CounterSchema)
+    (state : FieldCounterState)
+    (rs : Runs)
+    : bool :=
+  field_counter_fresh state (canonical_field_counter_view_from_runs schema rs).
+
+Definition decoded_hi16_lo8_fresh
+    (state : FieldCounterState)
+    (bits : list bool)
+    : bool :=
+  decoded_field_counter_fresh hi16_lo8_counter_schema state bits.
+
+Definition decoded_prefix12_suffix12_fresh
+    (state : FieldCounterState)
+    (bits : list bool)
+    : bool :=
+  decoded_field_counter_fresh prefix12_suffix12_counter_schema state bits.
+
+Lemma max_counter_for_key_record_same :
+  forall key ctr state,
+    max_counter_for_key key
+      (record_field_counter_view state
+         {| field_counter_key := key; field_counter_value := ctr |}) =
+      option_max (Some ctr) (max_counter_for_key key state).
+Proof.
+  intros key ctr state.
+  unfold record_field_counter_view.
+  simpl.
+  rewrite Nat.eqb_refl.
+  reflexivity.
+Qed.
+
+Lemma max_counter_for_key_record_different :
+  forall key key' ctr state,
+    Nat.eqb key key' = false ->
+    max_counter_for_key key
+      (record_field_counter_view state
+         {| field_counter_key := key'; field_counter_value := ctr |}) =
+      max_counter_for_key key state.
+Proof.
+  intros key key' ctr state Hneq.
+  unfold record_field_counter_view.
+  simpl.
+  rewrite Hneq.
+  reflexivity.
+Qed.
+
+Theorem unseen_field_counter_key_is_fresh :
+  forall key ctr state,
+    max_counter_for_key key state = None ->
+    field_counter_fresh state {| field_counter_key := key; field_counter_value := ctr |} = true.
+Proof.
+  intros key ctr state Hnone.
+  unfold field_counter_fresh.
+  simpl.
+  rewrite Hnone.
+  reflexivity.
+Qed.
+
+Theorem greater_field_counter_is_fresh :
+  forall key ctr state max_seen,
+    max_counter_for_key key state = Some max_seen ->
+    max_seen < ctr ->
+    field_counter_fresh state {| field_counter_key := key; field_counter_value := ctr |} = true.
+Proof.
+  intros key ctr state max_seen Hmax Hlt.
+  unfold field_counter_fresh.
+  simpl.
+  rewrite Hmax.
+  apply Nat.ltb_lt.
+  exact Hlt.
+Qed.
+
+Theorem nonincreasing_field_counter_is_rejected :
+  forall key ctr state max_seen,
+    max_counter_for_key key state = Some max_seen ->
+    ctr <= max_seen ->
+    field_counter_fresh state {| field_counter_key := key; field_counter_value := ctr |} = false.
+Proof.
+  intros key ctr state max_seen Hmax Hle.
+  unfold field_counter_fresh.
+  simpl.
+  rewrite Hmax.
+  apply Nat.ltb_ge.
+  exact Hle.
+Qed.
+
+Theorem exact_field_counter_replay_rejected :
+  forall key ctr state,
+    field_counter_fresh
+      (record_field_counter_view state
+         {| field_counter_key := key; field_counter_value := ctr |})
+      {| field_counter_key := key; field_counter_value := ctr |} = false.
+Proof.
+  intros key ctr state.
+  unfold field_counter_fresh.
+  rewrite max_counter_for_key_record_same.
+  simpl.
+  destruct (max_counter_for_key key state) as [max_seen|] eqn:Hmax; simpl.
+  - apply Nat.ltb_ge.
+    apply Nat.le_max_l.
+  - apply Nat.ltb_ge.
+    lia.
+Qed.
+
+Theorem recorded_field_counter_rejects_same_or_lower :
+  forall key ctr ctr' state,
+    ctr' <= ctr ->
+    field_counter_fresh
+      (record_field_counter_view state
+         {| field_counter_key := key; field_counter_value := ctr |})
+      {| field_counter_key := key; field_counter_value := ctr' |} = false.
+Proof.
+  intros key ctr ctr' state Hle.
+  unfold field_counter_fresh.
+  rewrite max_counter_for_key_record_same.
+  simpl.
+  destruct (max_counter_for_key key state) as [max_seen|] eqn:Hmax; simpl.
+  - apply Nat.ltb_ge.
+    eapply Nat.le_trans.
+    + exact Hle.
+    + apply Nat.le_max_l.
+  - apply Nat.ltb_ge.
+    exact Hle.
+Qed.
+
+Theorem field_counter_step_is_fresh_after_singleton :
+  forall older newer,
+    field_counter_step older newer ->
+    field_counter_fresh (record_field_counter_view [] older) newer = true.
+Proof.
+  intros older newer [Hkey Hstep].
+  unfold field_counter_fresh, record_field_counter_view.
+  simpl.
+  destruct older as [older_key older_value].
+  destruct newer as [newer_key newer_value].
+  simpl in *.
+  rewrite <- Hkey.
+  rewrite Nat.eqb_refl.
+  simpl.
+  apply Nat.ltb_lt.
+  lia.
+Qed.
+
+Theorem decoded_field_counter_step_is_fresh_after_singleton :
+  forall schema bits1 bits2,
+    decoded_field_counter_step schema bits1 bits2 ->
+    decoded_field_counter_fresh schema
+      (record_field_counter_view []
+         (field_counter_view_from_bits schema bits1))
+      bits2 = true.
+Proof.
+  intros schema bits1 bits2 Hstep.
+  unfold decoded_field_counter_fresh.
+  apply field_counter_step_is_fresh_after_singleton.
+  exact Hstep.
+Qed.
 
 Fixpoint max_counter_for_bits
     (bits : list bool)

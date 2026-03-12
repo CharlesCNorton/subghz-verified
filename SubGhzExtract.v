@@ -63,10 +63,19 @@ Extraction "burst_detector_extracted.ml"
   bits_to_nat
   field_bits
   field_value
+  hi16_lo8_counter_schema
+  prefix12_suffix12_counter_schema
+  field_counter_view_from_bits
+  hi16_lo8_counter_view_from_bits
+  prefix12_suffix12_counter_view_from_bits
+  field_counter_step
   packet24_from_bits
   packet24_byte_view_from_bits
   packet24_nibble_view_from_bits
   packet24_field_view_from_bits
+  decoded_field_counter_fresh
+  decoded_hi16_lo8_fresh
+  decoded_prefix12_suffix12_fresh
   canonical_pulse_runs_from_iq
   canonical_pulse_base_from_iq
   canonical_pulse_classes_from_iq
@@ -78,10 +87,16 @@ Extraction "burst_detector_extracted.ml"
   canonical_packet24_byte_view_from_powers
   canonical_packet24_nibble_view_from_powers
   canonical_packet24_field_view_from_powers
+  canonical_field_counter_view_from_powers
+  canonical_hi16_lo8_counter_view_from_powers
+  canonical_prefix12_suffix12_counter_view_from_powers
   canonical_packet24_from_iq
   canonical_packet24_byte_view_from_iq
   canonical_packet24_nibble_view_from_iq
   canonical_packet24_field_view_from_iq
+  canonical_field_counter_view_from_iq
+  canonical_hi16_lo8_counter_view_from_iq
+  canonical_prefix12_suffix12_counter_view_from_iq
   pulse_parse_certificate_self_consistent
   certify_canonical_pulse_parse_from_iq
   certify_canonical_frame_parse_from_iq.
