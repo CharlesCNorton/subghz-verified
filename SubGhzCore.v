@@ -1280,6 +1280,108 @@ Definition packet24_field_view_from_bits (xs : list bool) : Packet24FieldView :=
      packet24_fields_prefix12 := field_value packet24_prefix12_field xs;
      packet24_fields_suffix12 := field_value packet24_suffix12_field xs |}.
 
+Inductive PacketFieldRole :=
+| PacketFieldPrefix
+| PacketFieldPayload
+| PacketFieldCounter
+| PacketFieldFlag
+| PacketFieldCheck
+| PacketFieldBoundary
+| PacketFieldReserved.
+
+Definition packet_field_role_code (role : PacketFieldRole) : nat :=
+  match role with
+  | PacketFieldPrefix => 0
+  | PacketFieldPayload => 1
+  | PacketFieldCounter => 2
+  | PacketFieldFlag => 3
+  | PacketFieldCheck => 4
+  | PacketFieldBoundary => 5
+  | PacketFieldReserved => 6
+  end.
+
+Record PacketStructureFieldSpec := {
+  packet_structure_role : PacketFieldRole;
+  packet_structure_bits : BitFieldSpec
+}.
+
+Definition PacketStructureSpec := list PacketStructureFieldSpec.
+
+Record PacketStructuredFieldValue := {
+  structured_field_role : PacketFieldRole;
+  structured_field_offset : nat;
+  structured_field_width : nat;
+  structured_field_value : nat
+}.
+
+Definition packet_structured_field_value_from_bits
+    (spec : PacketStructureFieldSpec)
+    (xs : list bool)
+    : PacketStructuredFieldValue :=
+  {| structured_field_role := packet_structure_role spec;
+     structured_field_offset := field_offset (packet_structure_bits spec);
+     structured_field_width := field_width (packet_structure_bits spec);
+     structured_field_value := field_value (packet_structure_bits spec) xs |}.
+
+Definition packet_structure_view_from_bits
+    (spec : PacketStructureSpec)
+    (xs : list bool)
+    : list PacketStructuredFieldValue :=
+  map (fun field_spec => packet_structured_field_value_from_bits field_spec xs) spec.
+
+Definition packet_field_end (spec : BitFieldSpec) : nat :=
+  field_offset spec + field_width spec.
+
+Definition packet_field_spec_well_formed
+    (spec : PacketStructureFieldSpec)
+    : Prop :=
+  0 < field_width (packet_structure_bits spec) /\
+  packet_field_end (packet_structure_bits spec) <= 24.
+
+Fixpoint packet_structure_spec_well_formed
+    (spec : PacketStructureSpec)
+    : Prop :=
+  match spec with
+  | [] => True
+  | field_spec :: spec' =>
+      packet_field_spec_well_formed field_spec /\
+      packet_structure_spec_well_formed spec'
+  end.
+
+Definition packet24_byte_structure_spec : PacketStructureSpec :=
+  [ {| packet_structure_role := PacketFieldPayload;
+       packet_structure_bits := packet24_hi_byte_field |};
+    {| packet_structure_role := PacketFieldPayload;
+       packet_structure_bits := packet24_mid_byte_field |};
+    {| packet_structure_role := PacketFieldPayload;
+       packet_structure_bits := packet24_lo_byte_field |} ].
+
+Definition packet24_nibble_structure_spec : PacketStructureSpec :=
+  [ {| packet_structure_role := PacketFieldPayload;
+       packet_structure_bits := packet24_nibble0_field |};
+    {| packet_structure_role := PacketFieldPayload;
+       packet_structure_bits := packet24_nibble1_field |};
+    {| packet_structure_role := PacketFieldPayload;
+       packet_structure_bits := packet24_nibble2_field |};
+    {| packet_structure_role := PacketFieldPayload;
+       packet_structure_bits := packet24_nibble3_field |};
+    {| packet_structure_role := PacketFieldPayload;
+       packet_structure_bits := packet24_nibble4_field |};
+    {| packet_structure_role := PacketFieldPayload;
+       packet_structure_bits := packet24_nibble5_field |} ].
+
+Definition packet24_hi16_lo8_structure_spec : PacketStructureSpec :=
+  [ {| packet_structure_role := PacketFieldPrefix;
+       packet_structure_bits := packet24_hi16_field |};
+    {| packet_structure_role := PacketFieldCounter;
+       packet_structure_bits := packet24_lo_byte_field |} ].
+
+Definition packet24_prefix12_suffix12_structure_spec : PacketStructureSpec :=
+  [ {| packet_structure_role := PacketFieldPrefix;
+       packet_structure_bits := packet24_prefix12_field |};
+    {| packet_structure_role := PacketFieldCounter;
+       packet_structure_bits := packet24_suffix12_field |} ].
+
 Record CounterSchema := {
   counter_schema_key : BitFieldSpec;
   counter_schema_value : BitFieldSpec
@@ -1292,6 +1394,14 @@ Definition hi16_lo8_counter_schema : CounterSchema :=
 Definition prefix12_suffix12_counter_schema : CounterSchema :=
   {| counter_schema_key := packet24_prefix12_field;
      counter_schema_value := packet24_suffix12_field |}.
+
+Definition packet_structure_of_counter_schema
+    (schema : CounterSchema)
+    : PacketStructureSpec :=
+  [ {| packet_structure_role := PacketFieldPrefix;
+       packet_structure_bits := counter_schema_key schema |};
+    {| packet_structure_role := PacketFieldCounter;
+       packet_structure_bits := counter_schema_value schema |} ].
 
 Record FieldCounterView := {
   field_counter_key : nat;
@@ -1571,6 +1681,12 @@ Definition canonical_packet24_nibble_view_from_runs (rs : Runs) : Packet24Nibble
 
 Definition canonical_packet24_field_view_from_runs (rs : Runs) : Packet24FieldView :=
   packet24_field_view_from_bits (canonical_frame_bits_from_runs rs).
+
+Definition canonical_packet_structure_view_from_runs
+    (spec : PacketStructureSpec)
+    (rs : Runs)
+    : list PacketStructuredFieldValue :=
+  packet_structure_view_from_bits spec (canonical_frame_bits_from_runs rs).
 
 Definition canonical_field_counter_view_from_runs
     (schema : CounterSchema)
@@ -2392,6 +2508,21 @@ Proof.
   - exact Hactive.
 Qed.
 
+Theorem canonical_packet_structure_view_from_runs_scale_invariant :
+  forall factor spec rs,
+    0 < factor ->
+    active_run_lengths rs <> [] ->
+    canonical_packet_structure_view_from_runs spec (scale_runs factor rs) =
+      canonical_packet_structure_view_from_runs spec rs.
+Proof.
+  intros factor spec rs Hfactor Hactive.
+  unfold canonical_packet_structure_view_from_runs.
+  rewrite canonical_frame_bits_from_runs_scale_invariant.
+  - reflexivity.
+  - exact Hfactor.
+  - exact Hactive.
+Qed.
+
 Theorem canonical_field_counter_view_from_runs_scale_invariant :
   forall factor schema rs,
     0 < factor ->
@@ -2422,6 +2553,25 @@ Proof.
     + exact Hactive.
   - symmetry.
     apply canonical_packet24_from_runs_scale_invariant.
+    + exact Hfactor2.
+    + exact Hactive.
+Qed.
+
+Corollary canonical_packet_structure_view_pairwise_scale_equal :
+  forall factor1 factor2 spec rs,
+    0 < factor1 ->
+    0 < factor2 ->
+    active_run_lengths rs <> [] ->
+    canonical_packet_structure_view_from_runs spec (scale_runs factor1 rs) =
+      canonical_packet_structure_view_from_runs spec (scale_runs factor2 rs).
+Proof.
+  intros factor1 factor2 spec rs Hfactor1 Hfactor2 Hactive.
+  transitivity (canonical_packet_structure_view_from_runs spec rs).
+  - apply canonical_packet_structure_view_from_runs_scale_invariant.
+    + exact Hfactor1.
+    + exact Hactive.
+  - symmetry.
+    apply canonical_packet_structure_view_from_runs_scale_invariant.
     + exact Hfactor2.
     + exact Hactive.
 Qed.

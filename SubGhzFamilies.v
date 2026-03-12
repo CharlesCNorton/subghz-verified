@@ -134,6 +134,20 @@ Proof.
   - exact Hactive.
 Qed.
 
+Theorem tx_family_packet_structure_law :
+  forall spec base_pattern te,
+    0 < te ->
+    active_run_lengths base_pattern <> [] ->
+    canonical_packet_structure_view_from_runs spec (tx_family_member base_pattern te) =
+      canonical_packet_structure_view_from_runs spec base_pattern.
+Proof.
+  intros spec base_pattern te Hte Hactive.
+  unfold tx_family_member.
+  apply canonical_packet_structure_view_from_runs_scale_invariant.
+  - exact Hte.
+  - exact Hactive.
+Qed.
+
 Theorem tx_family_counter_view_law :
   forall schema base_pattern te,
     0 < te ->
@@ -215,6 +229,25 @@ Proof.
     + exact Hactive.
   - symmetry.
     apply tx_family_field_view_law.
+    + exact Hte2.
+    + exact Hactive.
+Qed.
+
+Corollary tx_family_members_share_packet_structure :
+  forall spec base_pattern te1 te2,
+    0 < te1 ->
+    0 < te2 ->
+    active_run_lengths base_pattern <> [] ->
+    canonical_packet_structure_view_from_runs spec (tx_family_member base_pattern te1) =
+      canonical_packet_structure_view_from_runs spec (tx_family_member base_pattern te2).
+Proof.
+  intros spec base_pattern te1 te2 Hte1 Hte2 Hactive.
+  transitivity (canonical_packet_structure_view_from_runs spec base_pattern).
+  - apply tx_family_packet_structure_law.
+    + exact Hte1.
+    + exact Hactive.
+  - symmetry.
+    apply tx_family_packet_structure_law.
     + exact Hte2.
     + exact Hactive.
 Qed.
@@ -318,6 +351,13 @@ Definition predicted_tx_family_field_views
     : list Packet24FieldView :=
   map (fun te => canonical_packet24_field_view_from_runs (tx_family_member base_pattern te)) tes.
 
+Definition predicted_tx_family_packet_structures
+    (spec : PacketStructureSpec)
+    (base_pattern : Runs)
+    (tes : list nat)
+    : list (list PacketStructuredFieldValue) :=
+  map (fun te => canonical_packet_structure_view_from_runs spec (tx_family_member base_pattern te)) tes.
+
 Definition predicted_tx_family_counter_views
     (schema : CounterSchema)
     (base_pattern : Runs)
@@ -419,6 +459,21 @@ Proof.
   induction Htes as [|te tes Hte Htes IH]; simpl.
   - reflexivity.
   - rewrite (tx_family_field_view_law base_pattern te Hte Hactive).
+    rewrite IH.
+    reflexivity.
+Qed.
+
+Theorem predicted_tx_family_packet_structures_constant :
+  forall spec base_pattern tes,
+    Forall (fun te => 0 < te) tes ->
+    active_run_lengths base_pattern <> [] ->
+    predicted_tx_family_packet_structures spec base_pattern tes =
+      repeat (canonical_packet_structure_view_from_runs spec base_pattern) (length tes).
+Proof.
+  intros spec base_pattern tes Htes Hactive.
+  induction Htes as [|te tes Hte Htes IH]; simpl.
+  - reflexivity.
+  - rewrite (tx_family_packet_structure_law spec base_pattern te Hte Hactive).
     rewrite IH.
     reflexivity.
 Qed.

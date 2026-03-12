@@ -23,6 +23,7 @@ compared against.
 - Timing-family invariance and family separation theorems
 - Parse certificates
 - Decoded frame-bit, frame-word, and packet semantics
+- General packet-structure specs and structure views above the 24-bit word
 - Counter-schema taxonomy over decoded frame sequences
 
 ## Data
@@ -85,4 +86,5 @@ Under that regime:
 - deliberate gain, offset, and bounded perturbation checks preserve the canonical object and frame word for `CAFE42` and `1CEB00`
 - deliberate gain, offset, and bounded perturbation checks preserve the canonical object and frame word for `D15EA5`
 - the tracked families remain distinct
+- generic packet-structure views now lift through the same family and IQ invariance laws as the fixed packet views
 - `prefix12/suffix12` is the stronger live counter schema on the tested numeric carry boundaries

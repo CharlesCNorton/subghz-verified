@@ -63,8 +63,15 @@ Extraction "burst_detector_extracted.ml"
   bits_to_nat
   field_bits
   field_value
+  packet_field_role_code
+  packet_structure_view_from_bits
+  packet24_byte_structure_spec
+  packet24_nibble_structure_spec
+  packet24_hi16_lo8_structure_spec
+  packet24_prefix12_suffix12_structure_spec
   hi16_lo8_counter_schema
   prefix12_suffix12_counter_schema
+  packet_structure_of_counter_schema
   field_counter_view_from_bits
   hi16_lo8_counter_view_from_bits
   prefix12_suffix12_counter_view_from_bits
@@ -93,6 +100,7 @@ Extraction "burst_detector_extracted.ml"
   canonical_packet24_byte_view_from_powers
   canonical_packet24_nibble_view_from_powers
   canonical_packet24_field_view_from_powers
+  canonical_packet_structure_view_from_powers
   canonical_field_counter_view_from_powers
   canonical_hi16_lo8_counter_view_from_powers
   canonical_prefix12_suffix12_counter_view_from_powers
@@ -100,6 +108,7 @@ Extraction "burst_detector_extracted.ml"
   canonical_packet24_byte_view_from_iq
   canonical_packet24_nibble_view_from_iq
   canonical_packet24_field_view_from_iq
+  canonical_packet_structure_view_from_iq
   canonical_field_counter_view_from_iq
   canonical_hi16_lo8_counter_view_from_iq
   canonical_prefix12_suffix12_counter_view_from_iq
