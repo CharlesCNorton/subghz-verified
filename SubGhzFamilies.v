@@ -1098,6 +1098,57 @@ Definition decoded_prefix12_suffix12_fresh
     : bool :=
   decoded_field_counter_fresh prefix12_suffix12_counter_schema state bits.
 
+Inductive PacketSchemaKind :=
+| PacketSchemaStatic
+| PacketSchemaCounter (schema : CounterSchema).
+
+Definition static_packet_fresh
+    (state : list (list bool))
+    (bits : list bool)
+    : bool :=
+  negb (existsb (bool_list_eqb bits) state).
+
+Definition record_static_packet
+    (state : list (list bool))
+    (bits : list bool)
+    : list (list bool) :=
+  bits :: state.
+
+Record PacketSchemaState := {
+  packet_schema_static_state : list (list bool);
+  packet_schema_counter_state : FieldCounterState
+}.
+
+Definition packet_schema_fresh_from_bits
+    (kind : PacketSchemaKind)
+    (state : PacketSchemaState)
+    (bits : list bool)
+    : bool :=
+  match kind with
+  | PacketSchemaStatic =>
+      static_packet_fresh (packet_schema_static_state state) bits
+  | PacketSchemaCounter schema =>
+      decoded_field_counter_fresh schema
+        (packet_schema_counter_state state) bits
+  end.
+
+Definition canonical_packet_schema_fresh_from_runs
+    (kind : PacketSchemaKind)
+    (state : PacketSchemaState)
+    (rs : Runs)
+    : bool :=
+  packet_schema_fresh_from_bits kind state
+    (canonical_frame_bits_from_runs rs).
+
+Definition static_packet_schema_kind : PacketSchemaKind :=
+  PacketSchemaStatic.
+
+Definition hi16_lo8_packet_schema_kind : PacketSchemaKind :=
+  PacketSchemaCounter hi16_lo8_counter_schema.
+
+Definition prefix12_suffix12_packet_schema_kind : PacketSchemaKind :=
+  PacketSchemaCounter prefix12_suffix12_counter_schema.
+
 Lemma max_counter_for_key_record_same :
   forall key ctr state,
     max_counter_for_key key
@@ -1185,6 +1236,28 @@ Proof.
     lia.
 Qed.
 
+Theorem unseen_static_packet_is_fresh :
+  forall bits state,
+    existsb (bool_list_eqb bits) state = false ->
+    static_packet_fresh state bits = true.
+Proof.
+  intros bits state Hseen.
+  unfold static_packet_fresh.
+  rewrite Hseen.
+  reflexivity.
+Qed.
+
+Theorem exact_static_packet_replay_rejected :
+  forall bits state,
+    static_packet_fresh (record_static_packet state bits) bits = false.
+Proof.
+  intros bits state.
+  unfold static_packet_fresh, record_static_packet.
+  simpl.
+  rewrite bool_list_eqb_refl.
+  reflexivity.
+Qed.
+
 Theorem recorded_field_counter_rejects_same_or_lower :
   forall key ctr ctr' state,
     ctr' <= ctr ->
@@ -1235,6 +1308,34 @@ Proof.
   intros schema bits1 bits2 Hstep.
   unfold decoded_field_counter_fresh.
   apply field_counter_step_is_fresh_after_singleton.
+  exact Hstep.
+Qed.
+
+Theorem packet_schema_static_replay_rejected :
+  forall bits static_state counter_state,
+    packet_schema_fresh_from_bits PacketSchemaStatic
+      {| packet_schema_static_state := record_static_packet static_state bits;
+         packet_schema_counter_state := counter_state |}
+      bits = false.
+Proof.
+  intros bits static_state counter_state.
+  unfold packet_schema_fresh_from_bits.
+  apply exact_static_packet_replay_rejected.
+Qed.
+
+Theorem packet_schema_counter_step_is_fresh_after_singleton :
+  forall schema bits1 bits2,
+    decoded_field_counter_step schema bits1 bits2 ->
+    packet_schema_fresh_from_bits (PacketSchemaCounter schema)
+      {| packet_schema_static_state := [];
+         packet_schema_counter_state :=
+           record_field_counter_view []
+             (field_counter_view_from_bits schema bits1) |}
+      bits2 = true.
+Proof.
+  intros schema bits1 bits2 Hstep.
+  unfold packet_schema_fresh_from_bits.
+  apply decoded_field_counter_step_is_fresh_after_singleton.
   exact Hstep.
 Qed.
 

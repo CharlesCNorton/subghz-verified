@@ -86,6 +86,8 @@ Extraction "burst_detector_extracted.ml"
   packet24_byte_view_from_bits
   packet24_nibble_view_from_bits
   packet24_field_view_from_bits
+  static_packet_fresh
+  packet_schema_fresh_from_bits
   decoded_field_counter_fresh
   decoded_hi16_lo8_fresh
   decoded_prefix12_suffix12_fresh
@@ -112,6 +114,7 @@ Extraction "burst_detector_extracted.ml"
   canonical_field_counter_view_from_iq
   canonical_hi16_lo8_counter_view_from_iq
   canonical_prefix12_suffix12_counter_view_from_iq
+  canonical_packet_schema_fresh_from_iq
   frame_bits_sequence_from_iq
   counter_schema_fits_iqb
   counter_schema_fit_report_from_iq_sequence

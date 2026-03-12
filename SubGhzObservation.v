@@ -426,6 +426,38 @@ Definition threshold_stable_sample
     : Prop :=
   sample + margin < threshold \/ threshold + margin <= sample.
 
+Definition threshold_shift_up_stable_sample
+    (threshold drift sample : nat)
+    : Prop :=
+  sample < threshold \/ threshold + drift <= sample.
+
+Fixpoint power_trace_threshold_shift_up_stable
+    (threshold drift : nat)
+    (xs : PowerTrace)
+    : Prop :=
+  match xs with
+  | [] => True
+  | x :: xs' =>
+      threshold_shift_up_stable_sample threshold drift x /\
+      power_trace_threshold_shift_up_stable threshold drift xs'
+  end.
+
+Definition threshold_shift_down_stable_sample
+    (threshold drift sample : nat)
+    : Prop :=
+  sample + drift < threshold \/ threshold <= sample.
+
+Fixpoint power_trace_threshold_shift_down_stable
+    (threshold drift : nat)
+    (xs : PowerTrace)
+    : Prop :=
+  match xs with
+  | [] => True
+  | x :: xs' =>
+      threshold_shift_down_stable_sample threshold drift x /\
+      power_trace_threshold_shift_down_stable threshold drift xs'
+  end.
+
 Fixpoint power_trace_threshold_stable
     (threshold margin : nat)
     (xs : PowerTrace)
@@ -593,6 +625,88 @@ Proof.
   - reflexivity.
   - rewrite window_above_threshold_offset_invariant.
     rewrite IH.
+    reflexivity.
+Qed.
+
+Lemma window_above_threshold_upward_drift_invariant :
+  forall drift threshold sample,
+    threshold_shift_up_stable_sample threshold drift sample ->
+    window_above_threshold (threshold + drift) sample =
+      window_above_threshold threshold sample.
+Proof.
+  intros drift threshold sample Hstable.
+  unfold window_above_threshold.
+  destruct (Nat.leb (threshold + drift) sample) eqn:Hup;
+    destruct (Nat.leb threshold sample) eqn:Hbase; try reflexivity.
+  - apply Nat.leb_le in Hup.
+    apply Nat.leb_gt in Hbase.
+    lia.
+  - destruct Hstable as [Hbelow | Habove].
+    + apply Nat.leb_gt in Hup.
+      apply Nat.leb_le in Hbase.
+      lia.
+    + apply Nat.leb_gt in Hup.
+      apply Nat.leb_le in Hbase.
+      lia.
+Qed.
+
+Theorem threshold_trace_upward_drift_invariant :
+  forall drift threshold xs,
+    power_trace_threshold_shift_up_stable threshold drift xs ->
+    threshold_trace (threshold + drift) xs =
+      threshold_trace threshold xs.
+Proof.
+  intros drift threshold xs Hstable.
+  induction xs as [|x xs IH]; simpl in *.
+  - reflexivity.
+  - destruct Hstable as [Hx Hxs].
+    rewrite window_above_threshold_upward_drift_invariant by exact Hx.
+    rewrite IH by exact Hxs.
+    reflexivity.
+Qed.
+
+Lemma window_above_threshold_downward_drift_invariant :
+  forall drift threshold sample,
+    drift <= threshold ->
+    threshold_shift_down_stable_sample threshold drift sample ->
+    window_above_threshold (threshold - drift) sample =
+      window_above_threshold threshold sample.
+Proof.
+  intros drift threshold sample Hdrift Hstable.
+  unfold window_above_threshold.
+  destruct Hstable as [Hbelow | Habove].
+  - destruct (Nat.leb (threshold - drift) sample) eqn:Hdown;
+      destruct (Nat.leb threshold sample) eqn:Hbase; try reflexivity.
+    + apply Nat.leb_le in Hdown.
+      apply Nat.leb_gt in Hbase.
+      lia.
+    + apply Nat.leb_gt in Hdown.
+      apply Nat.leb_le in Hbase.
+      lia.
+  - destruct (Nat.leb (threshold - drift) sample) eqn:Hdown;
+      destruct (Nat.leb threshold sample) eqn:Hbase; try reflexivity.
+    + apply Nat.leb_le in Hdown.
+      apply Nat.leb_gt in Hbase.
+      lia.
+    + apply Nat.leb_gt in Hdown.
+      apply Nat.leb_le in Hbase.
+      lia.
+Qed.
+
+Theorem threshold_trace_downward_drift_invariant :
+  forall drift threshold xs,
+    drift <= threshold ->
+    power_trace_threshold_shift_down_stable threshold drift xs ->
+    threshold_trace (threshold - drift) xs =
+      threshold_trace threshold xs.
+Proof.
+  intros drift threshold xs Hdrift Hstable.
+  induction xs as [|x xs IH]; simpl in *.
+  - reflexivity.
+  - destruct Hstable as [Hx Hxs].
+    rewrite window_above_threshold_downward_drift_invariant
+      by exact Hdrift || exact Hx.
+    rewrite IH by exact Hdrift || exact Hxs.
     reflexivity.
 Qed.
 
@@ -1021,6 +1135,137 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem canonical_frame_bits_from_powers_upward_drift_invariant :
+  forall drift threshold xs,
+    power_trace_threshold_shift_up_stable threshold drift xs ->
+    canonical_frame_bits_from_powers (threshold + drift) xs =
+      canonical_frame_bits_from_powers threshold xs.
+Proof.
+  intros drift threshold xs Hstable.
+  unfold canonical_frame_bits_from_powers, frame_bits_from_classes,
+    canonical_pulse_classes_from_powers, pulse_runs_from_powers.
+  rewrite threshold_trace_upward_drift_invariant by exact Hstable.
+  reflexivity.
+Qed.
+
+Theorem canonical_frame_word_from_powers_upward_drift_invariant :
+  forall drift threshold xs,
+    power_trace_threshold_shift_up_stable threshold drift xs ->
+    canonical_frame_word_from_powers (threshold + drift) xs =
+      canonical_frame_word_from_powers threshold xs.
+Proof.
+  intros drift threshold xs Hstable.
+  unfold canonical_frame_word_from_powers.
+  rewrite canonical_frame_bits_from_powers_upward_drift_invariant by exact Hstable.
+  reflexivity.
+Qed.
+
+Theorem canonical_packet24_from_powers_upward_drift_invariant :
+  forall drift threshold xs,
+    power_trace_threshold_shift_up_stable threshold drift xs ->
+    canonical_packet24_from_powers (threshold + drift) xs =
+      canonical_packet24_from_powers threshold xs.
+Proof.
+  intros drift threshold xs Hstable.
+  unfold canonical_packet24_from_powers.
+  rewrite canonical_frame_bits_from_powers_upward_drift_invariant by exact Hstable.
+  reflexivity.
+Qed.
+
+Theorem canonical_packet_structure_view_from_powers_upward_drift_invariant :
+  forall spec drift threshold xs,
+    power_trace_threshold_shift_up_stable threshold drift xs ->
+    canonical_packet_structure_view_from_powers spec (threshold + drift) xs =
+      canonical_packet_structure_view_from_powers spec threshold xs.
+Proof.
+  intros spec drift threshold xs Hstable.
+  unfold canonical_packet_structure_view_from_powers.
+  rewrite canonical_frame_bits_from_powers_upward_drift_invariant by exact Hstable.
+  reflexivity.
+Qed.
+
+Theorem canonical_field_counter_view_from_powers_upward_drift_invariant :
+  forall schema drift threshold xs,
+    power_trace_threshold_shift_up_stable threshold drift xs ->
+    canonical_field_counter_view_from_powers schema (threshold + drift) xs =
+      canonical_field_counter_view_from_powers schema threshold xs.
+Proof.
+  intros schema drift threshold xs Hstable.
+  unfold canonical_field_counter_view_from_powers.
+  rewrite canonical_frame_bits_from_powers_upward_drift_invariant by exact Hstable.
+  reflexivity.
+Qed.
+
+Theorem canonical_frame_bits_from_powers_downward_drift_invariant :
+  forall drift threshold xs,
+    drift <= threshold ->
+    power_trace_threshold_shift_down_stable threshold drift xs ->
+    canonical_frame_bits_from_powers (threshold - drift) xs =
+      canonical_frame_bits_from_powers threshold xs.
+Proof.
+  intros drift threshold xs Hdrift Hstable.
+  unfold canonical_frame_bits_from_powers, frame_bits_from_classes,
+    canonical_pulse_classes_from_powers, pulse_runs_from_powers.
+  rewrite threshold_trace_downward_drift_invariant by exact Hdrift || exact Hstable.
+  reflexivity.
+Qed.
+
+Theorem canonical_frame_word_from_powers_downward_drift_invariant :
+  forall drift threshold xs,
+    drift <= threshold ->
+    power_trace_threshold_shift_down_stable threshold drift xs ->
+    canonical_frame_word_from_powers (threshold - drift) xs =
+      canonical_frame_word_from_powers threshold xs.
+Proof.
+  intros drift threshold xs Hdrift Hstable.
+  unfold canonical_frame_word_from_powers.
+  rewrite canonical_frame_bits_from_powers_downward_drift_invariant
+    by exact Hdrift || exact Hstable.
+  reflexivity.
+Qed.
+
+Theorem canonical_packet24_from_powers_downward_drift_invariant :
+  forall drift threshold xs,
+    drift <= threshold ->
+    power_trace_threshold_shift_down_stable threshold drift xs ->
+    canonical_packet24_from_powers (threshold - drift) xs =
+      canonical_packet24_from_powers threshold xs.
+Proof.
+  intros drift threshold xs Hdrift Hstable.
+  unfold canonical_packet24_from_powers.
+  rewrite canonical_frame_bits_from_powers_downward_drift_invariant
+    by exact Hdrift || exact Hstable.
+  reflexivity.
+Qed.
+
+Theorem canonical_packet_structure_view_from_powers_downward_drift_invariant :
+  forall spec drift threshold xs,
+    drift <= threshold ->
+    power_trace_threshold_shift_down_stable threshold drift xs ->
+    canonical_packet_structure_view_from_powers spec (threshold - drift) xs =
+      canonical_packet_structure_view_from_powers spec threshold xs.
+Proof.
+  intros spec drift threshold xs Hdrift Hstable.
+  unfold canonical_packet_structure_view_from_powers.
+  rewrite canonical_frame_bits_from_powers_downward_drift_invariant
+    by exact Hdrift || exact Hstable.
+  reflexivity.
+Qed.
+
+Theorem canonical_field_counter_view_from_powers_downward_drift_invariant :
+  forall schema drift threshold xs,
+    drift <= threshold ->
+    power_trace_threshold_shift_down_stable threshold drift xs ->
+    canonical_field_counter_view_from_powers schema (threshold - drift) xs =
+      canonical_field_counter_view_from_powers schema threshold xs.
+Proof.
+  intros schema drift threshold xs Hdrift Hstable.
+  unfold canonical_field_counter_view_from_powers.
+  rewrite canonical_frame_bits_from_powers_downward_drift_invariant
+    by exact Hdrift || exact Hstable.
+  reflexivity.
+Qed.
+
 Definition Byte := nat.
 Definition ByteStream := list Byte.
 Definition IQPair := (Byte * Byte)%type.
@@ -1246,6 +1491,86 @@ Definition canonical_field_counter_fresh_from_iq
     : bool :=
   field_counter_fresh state
     (canonical_field_counter_view_from_iq schema window_pairs threshold xs).
+
+Definition canonical_packet_schema_fresh_from_iq
+    (kind : PacketSchemaKind)
+    (state : PacketSchemaState)
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    : bool :=
+  packet_schema_fresh_from_bits kind state
+    (canonical_frame_bits_from_iq window_pairs threshold xs).
+
+Definition iq_window_energy_equivalent
+    (window_pairs : nat)
+    (xs ys : ByteStream)
+    : Prop :=
+  iq_window_energy_trace window_pairs xs =
+    iq_window_energy_trace window_pairs ys.
+
+Theorem iq_window_energy_equivalent_implies_pulse_runs_invariant :
+  forall window_pairs threshold xs ys,
+    iq_window_energy_equivalent window_pairs xs ys ->
+    pulse_runs_from_iq window_pairs threshold xs =
+      pulse_runs_from_iq window_pairs threshold ys.
+Proof.
+  intros window_pairs threshold xs ys Heq.
+  unfold iq_window_energy_equivalent, pulse_runs_from_iq in *.
+  rewrite Heq.
+  reflexivity.
+Qed.
+
+Theorem iq_window_energy_equivalent_implies_frame_bits_invariant :
+  forall window_pairs threshold xs ys,
+    iq_window_energy_equivalent window_pairs xs ys ->
+    canonical_frame_bits_from_iq window_pairs threshold xs =
+      canonical_frame_bits_from_iq window_pairs threshold ys.
+Proof.
+  intros window_pairs threshold xs ys Heq.
+  unfold canonical_frame_bits_from_iq, canonical_pulse_classes_from_iq.
+  rewrite (iq_window_energy_equivalent_implies_pulse_runs_invariant
+             window_pairs threshold xs ys Heq).
+  reflexivity.
+Qed.
+
+Theorem iq_window_energy_equivalent_implies_frame_word_invariant :
+  forall window_pairs threshold xs ys,
+    iq_window_energy_equivalent window_pairs xs ys ->
+    canonical_frame_word_from_iq window_pairs threshold xs =
+      canonical_frame_word_from_iq window_pairs threshold ys.
+Proof.
+  intros window_pairs threshold xs ys Heq.
+  unfold canonical_frame_word_from_iq.
+  rewrite (iq_window_energy_equivalent_implies_frame_bits_invariant
+             window_pairs threshold xs ys Heq).
+  reflexivity.
+Qed.
+
+Theorem iq_window_energy_equivalent_implies_packet_structure_invariant :
+  forall spec window_pairs threshold xs ys,
+    iq_window_energy_equivalent window_pairs xs ys ->
+    canonical_packet_structure_view_from_iq spec window_pairs threshold xs =
+      canonical_packet_structure_view_from_iq spec window_pairs threshold ys.
+Proof.
+  intros spec window_pairs threshold xs ys Heq.
+  unfold canonical_packet_structure_view_from_iq.
+  rewrite (iq_window_energy_equivalent_implies_frame_bits_invariant
+             window_pairs threshold xs ys Heq).
+  reflexivity.
+Qed.
+
+Theorem iq_window_energy_equivalent_implies_counter_view_invariant :
+  forall schema window_pairs threshold xs ys,
+    iq_window_energy_equivalent window_pairs xs ys ->
+    canonical_field_counter_view_from_iq schema window_pairs threshold xs =
+      canonical_field_counter_view_from_iq schema window_pairs threshold ys.
+Proof.
+  intros schema window_pairs threshold xs ys Heq.
+  unfold canonical_field_counter_view_from_iq.
+  rewrite (iq_window_energy_equivalent_implies_frame_bits_invariant
+             window_pairs threshold xs ys Heq).
+  reflexivity.
+Qed.
 
 Definition frame_bits_sequence_from_iq
     (window_pairs threshold : nat)

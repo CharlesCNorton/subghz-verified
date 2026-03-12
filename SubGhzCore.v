@@ -883,6 +883,33 @@ Definition classify_run_with_base (base : nat) (r : Run) : PulseClass :=
 Definition classify_runs_with_base (base : nat) (rs : Runs) : list PulseClass :=
   map (classify_run_with_base base) rs.
 
+Definition class_preserving_run_jitter
+    (base : nat)
+    (r1 r2 : Run)
+    : Prop :=
+  classify_run_with_base base r1 =
+    classify_run_with_base base r2.
+
+Definition class_preserving_run_jitter_family
+    (base : nat)
+    (rs1 rs2 : Runs)
+    : Prop :=
+  Forall2 (class_preserving_run_jitter base) rs1 rs2.
+
+Theorem class_preserving_run_jitter_family_invariant :
+  forall base rs1 rs2,
+    class_preserving_run_jitter_family base rs1 rs2 ->
+    classify_runs_with_base base rs1 =
+      classify_runs_with_base base rs2.
+Proof.
+  intros base rs1 rs2 Hjitter.
+  induction Hjitter; simpl.
+  - reflexivity.
+  - rewrite H.
+    rewrite IHHjitter.
+    reflexivity.
+Qed.
+
 Definition coarsen_pulse_class (cls : PulseClass) : CoarsePulseClass :=
   match cls with
   | MarkShort => CoarseMarkShort
@@ -994,6 +1021,17 @@ Qed.
 
 Definition frame_bits_from_classes (xs : list PulseClass) : list bool :=
   first_frame_bits_from_tokens (frame_tokens_from_classes xs).
+
+Corollary class_preserving_run_jitter_family_frame_bits_invariant :
+  forall base rs1 rs2,
+    class_preserving_run_jitter_family base rs1 rs2 ->
+    frame_bits_from_classes (classify_runs_with_base base rs1) =
+      frame_bits_from_classes (classify_runs_with_base base rs2).
+Proof.
+  intros base rs1 rs2 Hjitter.
+  rewrite (class_preserving_run_jitter_family_invariant base rs1 rs2 Hjitter).
+  reflexivity.
+Qed.
 
 Fixpoint classes_of_bits (xs : list bool) : list PulseClass :=
   match xs with

@@ -1,0 +1,4 @@
+file,analysis_window_pairs,analysis_threshold,upward_threshold_drift,upward_equal,downward_threshold_drift,downward_equal,energy_rotation_equal,jitter_equal,notes
+te500-keyc0ffee-rep10-433920000.iq,20,131072,48,true,4096,true,true,true,representative static family
+te870-keyd15ea5-rep10-433920000.iq,20,131072,4096,true,3583,true,true,true,representative nontrivial family
+te500-key000200-rep10-433920000.iq,20,131072,4096,true,1255,true,true,true,representative counter-family member

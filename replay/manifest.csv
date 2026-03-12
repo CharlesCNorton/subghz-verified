@@ -1,6 +1,9 @@
-family_id,key,analysis_window_pairs,analysis_threshold,file,class_digest,frame_hex,base,notes
-C0FFEE,C0FFEE,20,131072,te500-keyc0ffee-rep10-433920000.iq,f0409e8cb4d2bdaba1fdd093301be576,c0ffee,7,repeatability baseline
-C0FFEE,C0FFEE,20,131072,te500-keyc0ffee-rep10-run2-433920000.iq,f0409e8cb4d2bdaba1fdd093301be576,c0ffee,7,repeatability check
-C0FFEE,C0FFEE,20,131072,te500-keyc0ffee-rep10-run3-433920000.iq,f0409e8cb4d2bdaba1fdd093301be576,c0ffee,7,repeatability check
-000100,000100,20,131072,te500-key000100-rep10-433920000.iq,35b0f28740a34e4e374d4e99cc50303a,000100,7,repeatability baseline
-000100,000100,20,131072,te500-key000100-rep10-run2-433920000.iq,35b0f28740a34e4e374d4e99cc50303a,000100,7,repeatability check
+family_id,key,analysis_window_pairs,analysis_threshold,file,class_digest,frame_hex,base,te,repeat,packet_structure_spec,packet_schema_kind,notes
+C0FFEE,C0FFEE,20,131072,te500-keyc0ffee-rep10-433920000.iq,f0409e8cb4d2bdaba1fdd093301be576,c0ffee,7,500,10,packet24_byte_structure_spec,static_packet24,repeatability baseline
+C0FFEE,C0FFEE,20,131072,te500-keyc0ffee-rep10-run2-433920000.iq,f0409e8cb4d2bdaba1fdd093301be576,c0ffee,7,500,10,packet24_byte_structure_spec,static_packet24,repeatability check
+C0FFEE,C0FFEE,20,131072,te500-keyc0ffee-rep10-run3-433920000.iq,f0409e8cb4d2bdaba1fdd093301be576,c0ffee,7,500,10,packet24_byte_structure_spec,static_packet24,repeatability check
+C0FFEE,C0FFEE,20,131072,te500-keyc0ffee-rep1-433920000.iq,f0409e8cb4d2bdaba1fdd093301be576,c0ffee,7,500,1,packet24_byte_structure_spec,static_packet24,repeat-variation metamer
+C0FFEE,C0FFEE,20,131072,te500-keyc0ffee-rep3-433920000.iq,f0409e8cb4d2bdaba1fdd093301be576,c0ffee,7,500,3,packet24_byte_structure_spec,static_packet24,repeat-variation metamer
+C0FFEE,C0FFEE,20,131072,te500-keyc0ffee-rep20-433920000.iq,f0409e8cb4d2bdaba1fdd093301be576,c0ffee,7,500,20,packet24_byte_structure_spec,static_packet24,repeat-variation metamer
+000100,000100,20,131072,te500-key000100-rep10-433920000.iq,35b0f28740a34e4e374d4e99cc50303a,000100,7,500,10,packet24_byte_structure_spec,static_packet24,repeatability baseline
+000100,000100,20,131072,te500-key000100-rep10-run2-433920000.iq,35b0f28740a34e4e374d4e99cc50303a,000100,7,500,10,packet24_byte_structure_spec,static_packet24,repeatability check
