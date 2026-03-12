@@ -1,0 +1,10 @@
+*.aux
+*.glob
+*.vo
+*.vok
+*.vos
+.coq-native/
+.lia.cache
+burst_detector_extracted.ml
+burst_detector_extracted.mli
+coq_search_tmp.v
