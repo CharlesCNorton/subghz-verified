@@ -6,3 +6,5 @@ te480-keyabcd10-rep10-433920000.iq,20,131072,3200,true,5471,true,true,true,16,20
 te520-key7ea5b0-rep10-433920000.iq,20,131072,328,true,9807,true,true,true,16,20260312,true,true,representative flag-payload-counter family
 te600-keybeef90-rep10-433920000.iq,20,131072,712,true,14855,true,true,true,32,20260312,true,true,representative prefix12-check-payload-counter family with stronger additive noise
 te640-keya5c3d0-rep10-433920000.iq,20,131072,1312,true,1423,true,true,true,32,20260312,true,true,representative prefix12-flag-payload-counter family with stronger additive noise
+te500-keybada50-rep10-433920000.iq,20,131072,2920,true,3599,true,true,true,32,20260313,false,false,"representative five-field family with stronger additive noise, phase-walk, rotation, and class-preserving jitter checks"
+te500-keyc4fe80-rep10-433920000.iq,20,131072,2496,true,6719,true,true,true,32,20260313,false,false,"representative five-field family with stronger additive noise, phase-walk, rotation, and class-preserving jitter checks"

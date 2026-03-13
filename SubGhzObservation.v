@@ -1520,6 +1520,16 @@ Definition canonical_packet_schema_descriptor_fresh_from_iq
     descriptor state
     (canonical_frame_bits_from_iq window_pairs threshold xs).
 
+Definition canonical_packet_schema_descriptor_fresh_sequence_from_iq
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (window_pairs threshold : nat)
+    (xss : list ByteStream)
+    : list bool :=
+  packet_schema_descriptor_fresh_sequence_from_bits
+    descriptor state
+    (map (canonical_frame_bits_from_iq window_pairs threshold) xss).
+
 Definition iq_window_energy_equivalent
     (window_pairs : nat)
     (xs ys : ByteStream)
@@ -1929,6 +1939,25 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem iq_window_energy_sequence_equivalent_implies_packet_schema_descriptor_fresh_sequence_invariant :
+  forall descriptor state window_pairs threshold xss yss,
+    iq_window_energy_sequence_equivalent window_pairs xss yss ->
+    canonical_packet_schema_descriptor_fresh_sequence_from_iq
+      descriptor state window_pairs threshold xss =
+      canonical_packet_schema_descriptor_fresh_sequence_from_iq
+        descriptor state window_pairs threshold yss.
+Proof.
+  intros descriptor state window_pairs threshold xss yss Hequiv.
+  unfold canonical_packet_schema_descriptor_fresh_sequence_from_iq.
+  change (map (canonical_frame_bits_from_iq window_pairs threshold) xss)
+    with (frame_bits_sequence_from_iq window_pairs threshold xss).
+  change (map (canonical_frame_bits_from_iq window_pairs threshold) yss)
+    with (frame_bits_sequence_from_iq window_pairs threshold yss).
+  rewrite (iq_window_energy_sequence_equivalent_implies_frame_bits_sequence_invariant
+             window_pairs threshold xss yss Hequiv).
+  reflexivity.
+Qed.
+
 Theorem iq_window_energy_sequence_equivalent_implies_counter_schema_classification_invariant :
   forall window_pairs threshold xss yss,
     iq_window_energy_sequence_equivalent window_pairs xss yss ->
@@ -1960,6 +1989,26 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem iq_window_energy_sequence_margin_implies_packet_schema_descriptor_fresh_sequence_invariant :
+  forall descriptor state window_pairs threshold margin xss yss,
+    iq_window_energy_sequence_within_margin window_pairs margin xss yss ->
+    iq_window_energy_sequence_threshold_stable window_pairs threshold margin xss ->
+    canonical_packet_schema_descriptor_fresh_sequence_from_iq
+      descriptor state window_pairs threshold yss =
+      canonical_packet_schema_descriptor_fresh_sequence_from_iq
+        descriptor state window_pairs threshold xss.
+Proof.
+  intros descriptor state window_pairs threshold margin xss yss Hmargin Hstable.
+  unfold canonical_packet_schema_descriptor_fresh_sequence_from_iq.
+  change (map (canonical_frame_bits_from_iq window_pairs threshold) yss)
+    with (frame_bits_sequence_from_iq window_pairs threshold yss).
+  change (map (canonical_frame_bits_from_iq window_pairs threshold) xss)
+    with (frame_bits_sequence_from_iq window_pairs threshold xss).
+  rewrite (iq_window_energy_sequence_margin_implies_frame_bits_sequence_invariant
+             window_pairs threshold margin xss yss Hmargin Hstable).
+  reflexivity.
+Qed.
+
 Theorem frame_bits_sequence_invariant_between_iq_regimes_implies_packet_schema_descriptor_profile_invariant :
   forall descriptor window_pairs1 threshold1 window_pairs2 threshold2 xss,
     frame_bits_sequence_from_iq window_pairs1 threshold1 xss =
@@ -1972,6 +2021,27 @@ Theorem frame_bits_sequence_invariant_between_iq_regimes_implies_packet_schema_d
         (frame_bits_sequence_from_iq window_pairs2 threshold2 xss).
 Proof.
   intros descriptor window_pairs1 threshold1 window_pairs2 threshold2 xss Hbits.
+  rewrite Hbits.
+  reflexivity.
+Qed.
+
+Theorem frame_bits_sequence_invariant_between_iq_regimes_implies_packet_schema_descriptor_fresh_sequence_invariant :
+  forall descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xss,
+    frame_bits_sequence_from_iq window_pairs1 threshold1 xss =
+      frame_bits_sequence_from_iq window_pairs2 threshold2 xss ->
+    canonical_packet_schema_descriptor_fresh_sequence_from_iq
+      descriptor state window_pairs1 threshold1 xss =
+      canonical_packet_schema_descriptor_fresh_sequence_from_iq
+        descriptor state window_pairs2 threshold2 xss.
+Proof.
+  intros descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xss Hbits.
+  unfold canonical_packet_schema_descriptor_fresh_sequence_from_iq.
+  change
+    (map (canonical_frame_bits_from_iq window_pairs1 threshold1) xss)
+    with (frame_bits_sequence_from_iq window_pairs1 threshold1 xss).
+  change
+    (map (canonical_frame_bits_from_iq window_pairs2 threshold2) xss)
+    with (frame_bits_sequence_from_iq window_pairs2 threshold2 xss).
   rewrite Hbits.
   reflexivity.
 Qed.
@@ -2624,6 +2694,20 @@ Theorem class_invariant_between_iq_regimes_implies_packet_schema_descriptor_prof
 Proof.
   intros descriptor window_pairs1 threshold1 window_pairs2 threshold2 xss Hbits.
   apply frame_bits_sequence_invariant_between_iq_regimes_implies_packet_schema_descriptor_profile_invariant.
+  exact Hbits.
+Qed.
+
+Theorem class_invariant_between_iq_regimes_implies_packet_schema_descriptor_fresh_sequence_invariant :
+  forall descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xss,
+    frame_bits_sequence_from_iq window_pairs1 threshold1 xss =
+      frame_bits_sequence_from_iq window_pairs2 threshold2 xss ->
+    canonical_packet_schema_descriptor_fresh_sequence_from_iq
+      descriptor state window_pairs1 threshold1 xss =
+      canonical_packet_schema_descriptor_fresh_sequence_from_iq
+        descriptor state window_pairs2 threshold2 xss.
+Proof.
+  intros descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xss Hbits.
+  apply frame_bits_sequence_invariant_between_iq_regimes_implies_packet_schema_descriptor_fresh_sequence_invariant.
   exact Hbits.
 Qed.
 

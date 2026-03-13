@@ -48,18 +48,24 @@ compared against.
 - `7EA5B0` at `te=260`, `520`, `1040`, `1560`
 - `BEEF90` at `te=300`, `600`, `900`, `1500`
 - `A5C3D0` at `te=320`, `640`, `960`, `1600`
+- `BADA50` at `te=210`, `420`, `840`, `1260`
+- `C4FE80` at `te=230`, `460`, `920`, `1380`
 - `D15EA5` refinement edge case at `te=175`
 - `C0FFEE` refinement edge case at `te=175`
 - `ABCD10` refinement edge case at `te=160`
 - `7EA5B0` refinement edge case at `te=180`
 - `BEEF90` refinement edge case at `te=170`
 - `A5C3D0` refinement edge case at `te=190`
+- `BADA50` refinement edge case at `te=165`
+- `C4FE80` refinement edge case at `te=185`
 - `000100` repeated at `te=500`
 - `000101` at `te=500`
 - `000102`, `000103`, `0001FE`, `0001FF`, `000200`, `000201` at `te=500`
 - `C0FFEE` repeat-variation captures at `rep=1`, `3`, `20`
 - `BEEF90` repeat-variation captures at `rep=1`, `20`
 - `A5C3D0` repeat-variation captures at `rep=1`, `20`
+- `BADA50` repeat-variation captures at `rep=1`, `20`
+- `C4FE80` repeat-variation captures at `rep=1`, `20`
 - `ABCD10`, `ABCD11`, `ABCD12`, `ABCD13`, `ABCD1E`, `ABCD1F`, `ABCD20`,
   `ABCD21` at `te=500`
 - `7EA5B0`, `7EA5B1`, `7EA5B2`, `7EA5B3`, `7EA5BE`, `7EA5BF`, `7EA5C0`,
@@ -68,6 +74,12 @@ compared against.
   `BEEFA1` at `te=500`
 - `A5C3D0`, `A5C3D1`, `A5C3D2`, `A5C3D3`, `A5C3DE`, `A5C3DF`, `A5C3E0`,
   `A5C3E1` at `te=500`
+- `BADA50`, `BADA51`, `BADA52`, `BADA53`, `BADA5E`, `BADA5F`, `BADA60`,
+  `BADA61` at `te=500`
+- `C4FE80`, `C4FE81`, `C4FE82`, `C4FE83`, `C4FE8E`, `C4FE8F`, `C4FE90`,
+  `C4FE91` at `te=500`
+- quiet-prefix and quiet-suffix alias captures derived from the real `BADA50`
+  and `C4FE80` representative files plus the quiet control
 
 Each file is a raw RX IQ capture at `433.92 MHz`, `250 kS/s`, `28.0 dB` gain.
 `captures/manifest.csv` records hashes, transmitter parameters, and the
@@ -116,6 +128,8 @@ Under that regime:
 - the `7EA5B0` family shares digest `c7ae6bd72816cb7860be44be68a3e42b`
 - the `BEEF90` family shares digest `f85a7588338de63f1506c84cecb0e026`
 - the `A5C3D0` family shares digest `9f6094750e509ccb6fd90af68d59b170`
+- the `BADA50` family shares digest `7159ca25622a8934f3239c0ad37cc29b`
+- the `C4FE80` family shares digest `3a1c5a892b97f4479d7f67cf4aa879b0`
 - the `000100` family shares digest `35b0f28740a34e4e374d4e99cc50303a`
 - the `000101` family shares digest `60d799f94711ead89855090b0e62ddf8`
 - the `000102` family shares digest `86ee94ceaccb8a4ead0cb91b24dcc8f4`
@@ -132,6 +146,9 @@ Under that regime:
 - the frame decoder also recovers `beef90`, `beef91`, `beef92`, `beef93`,
   `beef9e`, `beef9f`, `beefa0`, `beefa1`, `a5c3d0`, `a5c3d1`, `a5c3d2`,
   `a5c3d3`, `a5c3de`, `a5c3df`, `a5c3e0`, and `a5c3e1`
+- the frame decoder also recovers `bada50`, `bada51`, `bada52`, `bada53`,
+  `bada5e`, `bada5f`, `bada60`, `bada61`, `c4fe80`, `c4fe81`, `c4fe82`,
+  `c4fe83`, `c4fe8e`, `c4fe8f`, `c4fe90`, and `c4fe91`
 - repeated `C0FFEE te500` captures recover the same canonical object and frame word
 - `C0FFEE` repeat variation at `rep=1`, `3`, `10`, and `20` recovers the same first packet and structure view
 - `BEEF90` repeat variation at `rep=1`, `10`, and `20` recovers the same first packet and structure view
@@ -154,6 +171,14 @@ Under that regime:
   low-nibble unit-step counter
 - the `A5C3DE -> A5C3E1` sequence exposes a payload carry boundary beneath a
   constant flag nibble
+- the `BADA50 -> BADA53` sequence reveals constant prefix, check, flag, and
+  payload nibbles above a low-nibble unit-step counter
+- the `BADA5E -> BADA61` sequence exposes a five-field carry boundary while
+  preserving the `prefix20/lo4` freshness interpretation
+- the `C4FE80 -> C4FE83` sequence reveals constant prefix, flag, check, and
+  payload nibbles above a low-nibble unit-step counter
+- the `C4FE8E -> C4FE91` sequence exposes a five-field carry boundary while
+  preserving the `prefix20/lo4` freshness interpretation
 - `structures/manifest.csv` classifies the tracked family sweeps as constant
   packet families and records the sequence rows where counter, check, flag,
   payload, and boundary behavior becomes visible
@@ -166,6 +191,12 @@ Under that regime:
 - the `BEEF90 te170` edge capture is also a physically realized regime metamer
 - the `A5C3D0 te190` edge capture recovers the family only in finer regimes;
   the canonical regime truncates to the prefix
+- the `BADA50 te165` edge capture preserves the full packet only in finer
+  regimes; coarser regimes truncate toward the prefix
+- the `C4FE80 te185` edge capture preserves the full packet across several
+  finer regimes, while the canonical regime truncates toward the prefix
+- quiet-prefix and quiet-suffix alias captures preserve the decoded `BADA50`
+  and `C4FE80` packets while changing the canonical class digest
 - deliberate gain, offset, and bounded perturbation checks preserve the canonical object and frame word for `CAFE42` and `1CEB00`
 - deliberate gain, offset, and bounded perturbation checks preserve the canonical object and frame word for `D15EA5`
 - deliberate gain, offset, and bounded perturbation checks preserve the canonical object and frame word for `BEEF90` and `A5C3D0`
@@ -174,6 +205,9 @@ Under that regime:
   `ABCD10`, `7EA5B0`, `BEEF90`, and `A5C3D0` captures
 - the stronger additive-noise sweep remains stable up to amplitude `32` on the
   representative `BEEF90` and `A5C3D0` captures
+- the stronger additive-noise sweep also remains stable up to amplitude `32`
+  on the representative `BADA50` and `C4FE80` captures, while harsher
+  synthetic jitter no longer preserves the decoded packet there
 - upward and downward threshold drift within the proved stability margins preserves decoded packet structure on representative captures
 - a synthetic 90 degree IQ rotation preserves window energies, canonical objects, and decoded packets on representative captures
 - class-preserving run jitter preserves the decoded packet on representative captures

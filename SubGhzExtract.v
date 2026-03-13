@@ -79,6 +79,10 @@ Extraction "burst_detector_extracted.ml"
   packet24_prefix12_check4_boundary4_counter4_structure_spec
   packet24_prefix12_flag4_payload4_counter4_structure_spec
   packet24_prefix12_flag4_boundary4_counter4_structure_spec
+  packet24_prefix8_check4_flag4_payload4_counter4_structure_spec
+  packet24_prefix8_check4_flag4_boundary4_counter4_structure_spec
+  packet24_prefix8_flag4_check4_payload4_counter4_structure_spec
+  packet24_prefix8_flag4_check4_boundary4_counter4_structure_spec
   hi16_lo8_counter_schema
   prefix12_suffix12_counter_schema
   prefix20_lo4_counter_schema
@@ -116,6 +120,13 @@ Extraction "burst_detector_extracted.ml"
   prefix12_check4_boundary4_counter4_schema_descriptor
   prefix12_flag4_payload4_counter4_schema_descriptor
   prefix12_flag4_boundary4_counter4_schema_descriptor
+  prefix8_check4_flag4_payload4_counter4_schema_descriptor
+  prefix8_check4_flag4_boundary4_counter4_schema_descriptor
+  prefix8_flag4_check4_payload4_counter4_schema_descriptor
+  prefix8_flag4_check4_boundary4_counter4_schema_descriptor
+  empty_packet_schema_state
+  packet_schema_descriptor_fresh_sequence_from_bits
+  predicted_tx_family_packet_schema_descriptor_fresh_sequence
   canonical_pulse_runs_from_iq
   canonical_pulse_base_from_iq
   canonical_pulse_classes_from_iq
@@ -142,6 +153,7 @@ Extraction "burst_detector_extracted.ml"
   canonical_packet_schema_fresh_from_iq
   canonical_packet_schema_descriptor_structure_from_iq
   canonical_packet_schema_descriptor_fresh_from_iq
+  canonical_packet_schema_descriptor_fresh_sequence_from_iq
   frame_bits_sequence_from_iq
   packet_structure_profile_from_iq_sequence
   counter_schema_fits_iqb

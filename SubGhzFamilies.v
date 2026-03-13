@@ -1178,6 +1178,10 @@ Record PacketSchemaState := {
   packet_schema_counter_state : FieldCounterState
 }.
 
+Definition empty_packet_schema_state : PacketSchemaState :=
+  {| packet_schema_static_state := [];
+     packet_schema_counter_state := [] |}.
+
 Definition packet_schema_fresh_from_bits
     (kind : PacketSchemaKind)
     (state : PacketSchemaState)
@@ -1189,6 +1193,24 @@ Definition packet_schema_fresh_from_bits
   | PacketSchemaCounter schema =>
       decoded_field_counter_fresh schema
         (packet_schema_counter_state state) bits
+  end.
+
+Definition record_packet_schema_observation
+    (kind : PacketSchemaKind)
+    (state : PacketSchemaState)
+    (bits : list bool)
+    : PacketSchemaState :=
+  match kind with
+  | PacketSchemaStatic =>
+      {| packet_schema_static_state :=
+           record_static_packet (packet_schema_static_state state) bits;
+         packet_schema_counter_state := packet_schema_counter_state state |}
+  | PacketSchemaCounter schema =>
+      {| packet_schema_static_state := packet_schema_static_state state;
+         packet_schema_counter_state :=
+           record_field_counter_view
+             (packet_schema_counter_state state)
+             (field_counter_view_from_bits schema bits) |}
   end.
 
 Definition canonical_packet_schema_fresh_from_runs
@@ -1237,6 +1259,44 @@ Definition packet_schema_descriptor_fresh_from_bits
   packet_schema_fresh_from_bits
     (descriptor_freshness_kind descriptor) state bits.
 
+Definition record_packet_schema_descriptor_observation
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (bits : list bool)
+    : PacketSchemaState :=
+  record_packet_schema_observation
+    (descriptor_freshness_kind descriptor) state bits.
+
+Fixpoint packet_schema_fresh_sequence_from_bits
+    (kind : PacketSchemaKind)
+    (state : PacketSchemaState)
+    (bitss : list (list bool))
+    : list bool :=
+  match bitss with
+  | [] => []
+  | bits :: bitss' =>
+      let fresh := packet_schema_fresh_from_bits kind state bits in
+      fresh :: packet_schema_fresh_sequence_from_bits
+                 kind
+                 (record_packet_schema_observation kind state bits)
+                 bitss'
+  end.
+
+Fixpoint packet_schema_descriptor_fresh_sequence_from_bits
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (bitss : list (list bool))
+    : list bool :=
+  match bitss with
+  | [] => []
+  | bits :: bitss' =>
+      let fresh := packet_schema_descriptor_fresh_from_bits descriptor state bits in
+      fresh :: packet_schema_descriptor_fresh_sequence_from_bits
+                 descriptor
+                 (record_packet_schema_descriptor_observation descriptor state bits)
+                 bitss'
+  end.
+
 Definition canonical_packet_schema_descriptor_structure_from_runs
     (descriptor : PacketSchemaDescriptor)
     (rs : Runs)
@@ -1252,6 +1312,14 @@ Definition canonical_packet_schema_descriptor_fresh_from_runs
     : bool :=
   packet_schema_descriptor_fresh_from_bits
     descriptor state (canonical_frame_bits_from_runs rs).
+
+Definition canonical_packet_schema_descriptor_fresh_sequence_from_runs
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (rss : list Runs)
+    : list bool :=
+  packet_schema_descriptor_fresh_sequence_from_bits
+    descriptor state (map canonical_frame_bits_from_runs rss).
 
 Definition static_packet24_schema_descriptor : PacketSchemaDescriptor :=
   {| descriptor_structure_spec := packet24_byte_structure_spec;
@@ -1286,7 +1354,7 @@ Definition prefix12_check4_payload4_counter4_schema_descriptor
 Definition prefix12_check4_boundary4_counter4_schema_descriptor
     : PacketSchemaDescriptor :=
   {| descriptor_structure_spec := packet24_prefix12_check4_boundary4_counter4_structure_spec;
-     descriptor_freshness_kind := static_packet_schema_kind |}.
+     descriptor_freshness_kind := prefix20_lo4_packet_schema_kind |}.
 
 Definition prefix12_flag4_payload4_counter4_schema_descriptor
     : PacketSchemaDescriptor :=
@@ -1296,7 +1364,27 @@ Definition prefix12_flag4_payload4_counter4_schema_descriptor
 Definition prefix12_flag4_boundary4_counter4_schema_descriptor
     : PacketSchemaDescriptor :=
   {| descriptor_structure_spec := packet24_prefix12_flag4_boundary4_counter4_structure_spec;
-     descriptor_freshness_kind := static_packet_schema_kind |}.
+     descriptor_freshness_kind := prefix20_lo4_packet_schema_kind |}.
+
+Definition prefix8_check4_flag4_payload4_counter4_schema_descriptor
+    : PacketSchemaDescriptor :=
+  {| descriptor_structure_spec := packet24_prefix8_check4_flag4_payload4_counter4_structure_spec;
+     descriptor_freshness_kind := prefix20_lo4_packet_schema_kind |}.
+
+Definition prefix8_check4_flag4_boundary4_counter4_schema_descriptor
+    : PacketSchemaDescriptor :=
+  {| descriptor_structure_spec := packet24_prefix8_check4_flag4_boundary4_counter4_structure_spec;
+     descriptor_freshness_kind := prefix20_lo4_packet_schema_kind |}.
+
+Definition prefix8_flag4_check4_payload4_counter4_schema_descriptor
+    : PacketSchemaDescriptor :=
+  {| descriptor_structure_spec := packet24_prefix8_flag4_check4_payload4_counter4_structure_spec;
+     descriptor_freshness_kind := prefix20_lo4_packet_schema_kind |}.
+
+Definition prefix8_flag4_check4_boundary4_counter4_schema_descriptor
+    : PacketSchemaDescriptor :=
+  {| descriptor_structure_spec := packet24_prefix8_flag4_check4_boundary4_counter4_structure_spec;
+     descriptor_freshness_kind := prefix20_lo4_packet_schema_kind |}.
 
 Definition predicted_tx_family_packet_schema_structures
     (descriptor : PacketSchemaDescriptor)
@@ -1331,6 +1419,15 @@ Definition predicted_tx_family_packet_schema_descriptor_freshes
          descriptor state
          (tx_family_member base_pattern te))
     tes.
+
+Definition predicted_tx_family_packet_schema_descriptor_fresh_sequence
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (base_pattern : Runs)
+    (tes : list nat)
+    : list bool :=
+  packet_schema_descriptor_fresh_sequence_from_bits
+    descriptor state (predicted_tx_family_frame_bits base_pattern tes).
 
 Theorem tx_family_packet_schema_descriptor_structure_law :
   forall descriptor base_pattern te,
@@ -1421,6 +1518,109 @@ Proof.
       (tx_family_packet_schema_descriptor_fresh_law
          descriptor state base_pattern te Hte Hactive).
     rewrite IH.
+    reflexivity.
+Qed.
+
+Theorem packet_schema_replay_rejected_after_record :
+  forall kind state bits,
+    packet_schema_fresh_from_bits
+      kind
+      (record_packet_schema_observation kind state bits)
+      bits = false.
+Proof.
+  intros kind state bits.
+  destruct kind as [|schema].
+  - unfold record_packet_schema_observation, packet_schema_fresh_from_bits.
+    simpl.
+    unfold static_packet_fresh, record_static_packet.
+    simpl.
+    rewrite bool_list_eqb_refl.
+    reflexivity.
+  - unfold record_packet_schema_observation, packet_schema_fresh_from_bits.
+    simpl.
+    unfold decoded_field_counter_fresh.
+    destruct (field_counter_view_from_bits schema bits) as [key ctr].
+    unfold field_counter_fresh, record_field_counter_view.
+    simpl.
+    rewrite Nat.eqb_refl.
+    simpl.
+    destruct (max_counter_for_key key (packet_schema_counter_state state)) as [max_seen|] eqn:Hmax; simpl.
+    + apply Nat.ltb_ge.
+      apply Nat.le_max_l.
+    + apply Nat.ltb_ge.
+      lia.
+Qed.
+
+Theorem packet_schema_descriptor_replay_rejected_after_record :
+  forall descriptor state bits,
+    packet_schema_descriptor_fresh_from_bits
+      descriptor
+      (record_packet_schema_descriptor_observation descriptor state bits)
+      bits = false.
+Proof.
+  intros descriptor state bits.
+  unfold packet_schema_descriptor_fresh_from_bits,
+    record_packet_schema_descriptor_observation.
+  apply packet_schema_replay_rejected_after_record.
+Qed.
+
+Theorem predicted_tx_family_packet_schema_descriptor_fresh_sequence_constant :
+  forall descriptor state base_pattern tes,
+    Forall (fun te => 0 < te) tes ->
+    active_run_lengths base_pattern <> [] ->
+    predicted_tx_family_packet_schema_descriptor_fresh_sequence
+      descriptor state base_pattern tes =
+      match tes with
+      | [] => []
+      | _ :: tes' =>
+          canonical_packet_schema_descriptor_fresh_from_runs descriptor state base_pattern
+          :: repeat false (length tes')
+      end.
+Proof.
+  intros descriptor state base_pattern tes Htes Hactive.
+  unfold predicted_tx_family_packet_schema_descriptor_fresh_sequence.
+  destruct tes as [|te tes'].
+  - reflexivity.
+  - simpl.
+    inversion Htes as [|te' tes'' Hte Htes']; subst.
+    rewrite (tx_family_frame_bits_law base_pattern te Hte Hactive).
+    assert
+      (Hrepeat :
+         forall tes0 st,
+           Forall (fun te0 => 0 < te0) tes0 ->
+           packet_schema_descriptor_fresh_from_bits
+             descriptor st (canonical_frame_bits_from_runs base_pattern) = false ->
+           packet_schema_descriptor_fresh_sequence_from_bits
+             descriptor st
+             (predicted_tx_family_frame_bits base_pattern tes0) =
+             repeat false (length tes0)).
+    {
+      intros tes0 st Htes0.
+      revert st.
+      induction Htes0 as [|te0 tes1 Hte0 Htes1 IH]; intros st Hfresh; simpl.
+      - reflexivity.
+      - rewrite (tx_family_frame_bits_law base_pattern te0 Hte0 Hactive).
+        rewrite Hfresh.
+        rewrite IH.
+        + reflexivity.
+        + apply packet_schema_descriptor_replay_rejected_after_record.
+    }
+    assert
+      (Hfresh0 :
+         packet_schema_descriptor_fresh_from_bits
+           descriptor
+           (record_packet_schema_descriptor_observation
+              descriptor state (canonical_frame_bits_from_runs base_pattern))
+           (canonical_frame_bits_from_runs base_pattern) = false).
+    {
+      apply packet_schema_descriptor_replay_rejected_after_record.
+    }
+    rewrite
+      (Hrepeat
+         tes'
+         (record_packet_schema_descriptor_observation
+            descriptor state (canonical_frame_bits_from_runs base_pattern))
+         Htes' Hfresh0).
     reflexivity.
 Qed.
 
@@ -1658,6 +1858,25 @@ Theorem packet_schema_counter_step_is_fresh_after_singleton :
 Proof.
   intros schema bits1 bits2 Hstep.
   unfold packet_schema_fresh_from_bits.
+  apply decoded_field_counter_step_is_fresh_after_singleton.
+  exact Hstep.
+Qed.
+
+Theorem packet_schema_descriptor_step_is_fresh_after_singleton :
+  forall descriptor bits1 bits2,
+    descriptor_freshness_kind descriptor = prefix20_lo4_packet_schema_kind ->
+    decoded_field_counter_step prefix20_lo4_counter_schema bits1 bits2 ->
+    packet_schema_descriptor_fresh_from_bits descriptor
+      (record_packet_schema_descriptor_observation descriptor empty_packet_schema_state bits1)
+      bits2 = true.
+Proof.
+  intros descriptor bits1 bits2 Hkind Hstep.
+  unfold packet_schema_descriptor_fresh_from_bits,
+    record_packet_schema_descriptor_observation,
+    empty_packet_schema_state.
+  rewrite Hkind.
+  unfold prefix20_lo4_packet_schema_kind.
+  simpl.
   apply decoded_field_counter_step_is_fresh_after_singleton.
   exact Hstep.
 Qed.
