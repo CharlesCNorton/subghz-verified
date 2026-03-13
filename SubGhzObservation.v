@@ -1847,6 +1847,149 @@ Proof.
   reflexivity.
 Qed.
 
+Definition iq_window_energy_sequence_equivalent
+    (window_pairs : nat)
+    (xss yss : list ByteStream)
+    : Prop :=
+  Forall2 (iq_window_energy_equivalent window_pairs) xss yss.
+
+Definition iq_window_energy_sequence_within_margin
+    (window_pairs margin : nat)
+    (xss yss : list ByteStream)
+    : Prop :=
+  Forall2 (iq_window_energy_within_margin window_pairs margin) xss yss.
+
+Definition iq_window_energy_sequence_threshold_stable
+    (window_pairs threshold margin : nat)
+    (xss : list ByteStream)
+    : Prop :=
+  Forall (iq_window_energy_threshold_stable window_pairs threshold margin) xss.
+
+Theorem iq_window_energy_sequence_equivalent_implies_frame_bits_sequence_invariant :
+  forall window_pairs threshold xss yss,
+    iq_window_energy_sequence_equivalent window_pairs xss yss ->
+    frame_bits_sequence_from_iq window_pairs threshold xss =
+      frame_bits_sequence_from_iq window_pairs threshold yss.
+Proof.
+  intros window_pairs threshold xss yss Hequiv.
+  induction Hequiv; simpl.
+  - reflexivity.
+  - rewrite
+      (iq_window_energy_equivalent_implies_frame_bits_invariant
+         window_pairs threshold x y H).
+    rewrite IHHequiv.
+    reflexivity.
+Qed.
+
+Theorem iq_window_energy_sequence_margin_implies_frame_bits_sequence_invariant :
+  forall window_pairs threshold margin xss yss,
+    iq_window_energy_sequence_within_margin window_pairs margin xss yss ->
+    iq_window_energy_sequence_threshold_stable window_pairs threshold margin xss ->
+    frame_bits_sequence_from_iq window_pairs threshold yss =
+      frame_bits_sequence_from_iq window_pairs threshold xss.
+Proof.
+  intros window_pairs threshold margin xss yss Hmargin Hstable.
+  revert yss Hmargin.
+  induction Hstable as [|xs xss Hstable_head Hstable_tail IH]; intros yss Hmargin.
+  - inversion Hmargin; reflexivity.
+  - inversion Hmargin as [|x y xss' yss' Hmargin_xy Hmargin_rest]; subst; simpl.
+    rewrite
+      (canonical_frame_bits_from_iq_margin_invariant
+         window_pairs threshold margin xs y Hmargin_xy Hstable_head).
+    rewrite (IH _ Hmargin_rest).
+    reflexivity.
+Qed.
+
+Theorem iq_window_energy_sequence_equivalent_implies_packet_structure_profile_invariant :
+  forall spec window_pairs threshold xss yss,
+    iq_window_energy_sequence_equivalent window_pairs xss yss ->
+    packet_structure_profile_from_iq_sequence spec window_pairs threshold xss =
+      packet_structure_profile_from_iq_sequence spec window_pairs threshold yss.
+Proof.
+  intros spec window_pairs threshold xss yss Hequiv.
+  unfold packet_structure_profile_from_iq_sequence.
+  rewrite (iq_window_energy_sequence_equivalent_implies_frame_bits_sequence_invariant
+             window_pairs threshold xss yss Hequiv).
+  reflexivity.
+Qed.
+
+Theorem iq_window_energy_sequence_equivalent_implies_packet_schema_descriptor_profile_invariant :
+  forall descriptor window_pairs threshold xss yss,
+    iq_window_energy_sequence_equivalent window_pairs xss yss ->
+    packet_schema_descriptor_profile_from_bits_sequence
+      descriptor
+      (frame_bits_sequence_from_iq window_pairs threshold xss) =
+      packet_schema_descriptor_profile_from_bits_sequence
+        descriptor
+        (frame_bits_sequence_from_iq window_pairs threshold yss).
+Proof.
+  intros descriptor window_pairs threshold xss yss Hequiv.
+  rewrite (iq_window_energy_sequence_equivalent_implies_frame_bits_sequence_invariant
+             window_pairs threshold xss yss Hequiv).
+  reflexivity.
+Qed.
+
+Theorem iq_window_energy_sequence_equivalent_implies_counter_schema_classification_invariant :
+  forall window_pairs threshold xss yss,
+    iq_window_energy_sequence_equivalent window_pairs xss yss ->
+    counter_schema_classification_code_from_bits
+      (frame_bits_sequence_from_iq window_pairs threshold xss) =
+      counter_schema_classification_code_from_bits
+        (frame_bits_sequence_from_iq window_pairs threshold yss).
+Proof.
+  intros window_pairs threshold xss yss Hequiv.
+  rewrite (iq_window_energy_sequence_equivalent_implies_frame_bits_sequence_invariant
+             window_pairs threshold xss yss Hequiv).
+  reflexivity.
+Qed.
+
+Theorem iq_window_energy_sequence_margin_implies_packet_schema_descriptor_profile_invariant :
+  forall descriptor window_pairs threshold margin xss yss,
+    iq_window_energy_sequence_within_margin window_pairs margin xss yss ->
+    iq_window_energy_sequence_threshold_stable window_pairs threshold margin xss ->
+    packet_schema_descriptor_profile_from_bits_sequence
+      descriptor
+      (frame_bits_sequence_from_iq window_pairs threshold yss) =
+      packet_schema_descriptor_profile_from_bits_sequence
+        descriptor
+        (frame_bits_sequence_from_iq window_pairs threshold xss).
+Proof.
+  intros descriptor window_pairs threshold margin xss yss Hmargin Hstable.
+  rewrite (iq_window_energy_sequence_margin_implies_frame_bits_sequence_invariant
+             window_pairs threshold margin xss yss Hmargin Hstable).
+  reflexivity.
+Qed.
+
+Theorem frame_bits_sequence_invariant_between_iq_regimes_implies_packet_schema_descriptor_profile_invariant :
+  forall descriptor window_pairs1 threshold1 window_pairs2 threshold2 xss,
+    frame_bits_sequence_from_iq window_pairs1 threshold1 xss =
+      frame_bits_sequence_from_iq window_pairs2 threshold2 xss ->
+    packet_schema_descriptor_profile_from_bits_sequence
+      descriptor
+      (frame_bits_sequence_from_iq window_pairs1 threshold1 xss) =
+      packet_schema_descriptor_profile_from_bits_sequence
+        descriptor
+        (frame_bits_sequence_from_iq window_pairs2 threshold2 xss).
+Proof.
+  intros descriptor window_pairs1 threshold1 window_pairs2 threshold2 xss Hbits.
+  rewrite Hbits.
+  reflexivity.
+Qed.
+
+Theorem frame_bits_sequence_invariant_between_iq_regimes_implies_counter_schema_classification_invariant :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xss,
+    frame_bits_sequence_from_iq window_pairs1 threshold1 xss =
+      frame_bits_sequence_from_iq window_pairs2 threshold2 xss ->
+    counter_schema_classification_code_from_bits
+      (frame_bits_sequence_from_iq window_pairs1 threshold1 xss) =
+      counter_schema_classification_code_from_bits
+        (frame_bits_sequence_from_iq window_pairs2 threshold2 xss).
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xss Hbits.
+  rewrite Hbits.
+  reflexivity.
+Qed.
+
 Definition emitter_class_from_iq
     (window_pairs threshold : nat)
     (xs : ByteStream)
@@ -2466,6 +2609,22 @@ Proof.
   rewrite (class_invariant_between_iq_regimes_implies_field_view_invariant
              window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
   reflexivity.
+Qed.
+
+Theorem class_invariant_between_iq_regimes_implies_packet_schema_descriptor_profile_invariant :
+  forall descriptor window_pairs1 threshold1 window_pairs2 threshold2 xss,
+    frame_bits_sequence_from_iq window_pairs1 threshold1 xss =
+      frame_bits_sequence_from_iq window_pairs2 threshold2 xss ->
+    packet_schema_descriptor_profile_from_bits_sequence
+      descriptor
+      (frame_bits_sequence_from_iq window_pairs1 threshold1 xss) =
+      packet_schema_descriptor_profile_from_bits_sequence
+        descriptor
+        (frame_bits_sequence_from_iq window_pairs2 threshold2 xss).
+Proof.
+  intros descriptor window_pairs1 threshold1 window_pairs2 threshold2 xss Hbits.
+  apply frame_bits_sequence_invariant_between_iq_regimes_implies_packet_schema_descriptor_profile_invariant.
+  exact Hbits.
 Qed.
 
 Theorem same_emitter_class_iq_refl :

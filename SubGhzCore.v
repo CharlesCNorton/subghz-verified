@@ -1575,6 +1575,50 @@ Definition packet24_prefix8_flag4_payload8_counter4_structure_spec
     {| packet_structure_role := PacketFieldCounter;
        packet_structure_bits := packet24_counter4_field |} ].
 
+Definition packet24_prefix12_check4_payload4_counter4_structure_spec
+    : PacketStructureSpec :=
+  [ {| packet_structure_role := PacketFieldPrefix;
+       packet_structure_bits := packet24_prefix12_field |};
+    {| packet_structure_role := PacketFieldCheck;
+       packet_structure_bits := packet24_nibble3_field |};
+    {| packet_structure_role := PacketFieldPayload;
+       packet_structure_bits := packet24_nibble4_field |};
+    {| packet_structure_role := PacketFieldCounter;
+       packet_structure_bits := packet24_counter4_field |} ].
+
+Definition packet24_prefix12_check4_boundary4_counter4_structure_spec
+    : PacketStructureSpec :=
+  [ {| packet_structure_role := PacketFieldPrefix;
+       packet_structure_bits := packet24_prefix12_field |};
+    {| packet_structure_role := PacketFieldCheck;
+       packet_structure_bits := packet24_nibble3_field |};
+    {| packet_structure_role := PacketFieldBoundary;
+       packet_structure_bits := packet24_nibble4_field |};
+    {| packet_structure_role := PacketFieldCounter;
+       packet_structure_bits := packet24_counter4_field |} ].
+
+Definition packet24_prefix12_flag4_payload4_counter4_structure_spec
+    : PacketStructureSpec :=
+  [ {| packet_structure_role := PacketFieldPrefix;
+       packet_structure_bits := packet24_prefix12_field |};
+    {| packet_structure_role := PacketFieldFlag;
+       packet_structure_bits := packet24_nibble3_field |};
+    {| packet_structure_role := PacketFieldPayload;
+       packet_structure_bits := packet24_nibble4_field |};
+    {| packet_structure_role := PacketFieldCounter;
+       packet_structure_bits := packet24_counter4_field |} ].
+
+Definition packet24_prefix12_flag4_boundary4_counter4_structure_spec
+    : PacketStructureSpec :=
+  [ {| packet_structure_role := PacketFieldPrefix;
+       packet_structure_bits := packet24_prefix12_field |};
+    {| packet_structure_role := PacketFieldFlag;
+       packet_structure_bits := packet24_nibble3_field |};
+    {| packet_structure_role := PacketFieldBoundary;
+       packet_structure_bits := packet24_nibble4_field |};
+    {| packet_structure_role := PacketFieldCounter;
+       packet_structure_bits := packet24_counter4_field |} ].
+
 Record CounterSchema := {
   counter_schema_key : BitFieldSpec;
   counter_schema_value : BitFieldSpec

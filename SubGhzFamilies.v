@@ -1278,6 +1278,26 @@ Definition prefix8_flag4_payload8_counter4_schema_descriptor
   {| descriptor_structure_spec := packet24_prefix8_flag4_payload8_counter4_structure_spec;
      descriptor_freshness_kind := prefix20_lo4_packet_schema_kind |}.
 
+Definition prefix12_check4_payload4_counter4_schema_descriptor
+    : PacketSchemaDescriptor :=
+  {| descriptor_structure_spec := packet24_prefix12_check4_payload4_counter4_structure_spec;
+     descriptor_freshness_kind := prefix20_lo4_packet_schema_kind |}.
+
+Definition prefix12_check4_boundary4_counter4_schema_descriptor
+    : PacketSchemaDescriptor :=
+  {| descriptor_structure_spec := packet24_prefix12_check4_boundary4_counter4_structure_spec;
+     descriptor_freshness_kind := static_packet_schema_kind |}.
+
+Definition prefix12_flag4_payload4_counter4_schema_descriptor
+    : PacketSchemaDescriptor :=
+  {| descriptor_structure_spec := packet24_prefix12_flag4_payload4_counter4_structure_spec;
+     descriptor_freshness_kind := prefix20_lo4_packet_schema_kind |}.
+
+Definition prefix12_flag4_boundary4_counter4_schema_descriptor
+    : PacketSchemaDescriptor :=
+  {| descriptor_structure_spec := packet24_prefix12_flag4_boundary4_counter4_structure_spec;
+     descriptor_freshness_kind := static_packet_schema_kind |}.
+
 Definition predicted_tx_family_packet_schema_structures
     (descriptor : PacketSchemaDescriptor)
     (base_pattern : Runs)
@@ -1287,6 +1307,28 @@ Definition predicted_tx_family_packet_schema_structures
     (fun te =>
        canonical_packet_schema_descriptor_structure_from_runs
          descriptor
+         (tx_family_member base_pattern te))
+    tes.
+
+Definition tx_family_packet_schema_descriptor_profile
+    (descriptor : PacketSchemaDescriptor)
+    (base_pattern : Runs)
+    (tes : list nat)
+    : list PacketStructuredFieldProfile :=
+  packet_schema_descriptor_profile_from_bits_sequence
+    descriptor
+    (predicted_tx_family_frame_bits base_pattern tes).
+
+Definition predicted_tx_family_packet_schema_descriptor_freshes
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (base_pattern : Runs)
+    (tes : list nat)
+    : list bool :=
+  map
+    (fun te =>
+       canonical_packet_schema_descriptor_fresh_from_runs
+         descriptor state
          (tx_family_member base_pattern te))
     tes.
 
@@ -1326,6 +1368,26 @@ Proof.
     reflexivity.
 Qed.
 
+Theorem tx_family_packet_schema_descriptor_profile_constant :
+  forall descriptor base_pattern tes,
+    Forall (fun te => 0 < te) tes ->
+    active_run_lengths base_pattern <> [] ->
+    tes <> [] ->
+    map structured_profile_behavior
+      (tx_family_packet_schema_descriptor_profile descriptor base_pattern tes) =
+      repeat
+        PacketFieldBehaviorConstant
+        (length (descriptor_structure_spec descriptor)).
+Proof.
+  intros descriptor base_pattern tes Htes Hactive Hnonempty.
+  destruct tes as [|te tes'].
+  - contradiction Hnonempty. reflexivity.
+  - unfold tx_family_packet_schema_descriptor_profile,
+      packet_schema_descriptor_profile_from_bits_sequence.
+    rewrite (predicted_tx_family_frame_bits_constant base_pattern (te :: tes') Htes Hactive).
+    apply packet_structure_profile_from_bits_sequence_repeat_constant.
+Qed.
+
 Theorem tx_family_packet_schema_descriptor_fresh_law :
   forall descriptor state base_pattern te,
     0 < te ->
@@ -1340,6 +1402,26 @@ Proof.
     packet_schema_descriptor_fresh_from_bits.
   rewrite tx_family_frame_bits_law by exact Hte || exact Hactive.
   reflexivity.
+Qed.
+
+Theorem predicted_tx_family_packet_schema_descriptor_freshes_constant :
+  forall descriptor state base_pattern tes,
+    Forall (fun te => 0 < te) tes ->
+    active_run_lengths base_pattern <> [] ->
+    predicted_tx_family_packet_schema_descriptor_freshes
+      descriptor state base_pattern tes =
+      repeat
+        (canonical_packet_schema_descriptor_fresh_from_runs descriptor state base_pattern)
+        (length tes).
+Proof.
+  intros descriptor state base_pattern tes Htes Hactive.
+  induction Htes as [|te tes Hte Htes IH]; simpl.
+  - reflexivity.
+  - rewrite
+      (tx_family_packet_schema_descriptor_fresh_law
+         descriptor state base_pattern te Hte Hactive).
+    rewrite IH.
+    reflexivity.
 Qed.
 
 Corollary class_preserving_run_jitter_family_packet_schema_fresh_invariant :

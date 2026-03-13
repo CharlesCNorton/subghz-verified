@@ -75,6 +75,10 @@ Extraction "burst_detector_extracted.ml"
   packet24_prefix16_check4_counter4_structure_spec
   packet24_prefix16_boundary4_counter4_structure_spec
   packet24_prefix8_flag4_payload8_counter4_structure_spec
+  packet24_prefix12_check4_payload4_counter4_structure_spec
+  packet24_prefix12_check4_boundary4_counter4_structure_spec
+  packet24_prefix12_flag4_payload4_counter4_structure_spec
+  packet24_prefix12_flag4_boundary4_counter4_structure_spec
   hi16_lo8_counter_schema
   prefix12_suffix12_counter_schema
   prefix20_lo4_counter_schema
@@ -108,6 +112,10 @@ Extraction "burst_detector_extracted.ml"
   prefix16_check4_counter4_schema_descriptor
   prefix16_boundary4_counter4_schema_descriptor
   prefix8_flag4_payload8_counter4_schema_descriptor
+  prefix12_check4_payload4_counter4_schema_descriptor
+  prefix12_check4_boundary4_counter4_schema_descriptor
+  prefix12_flag4_payload4_counter4_schema_descriptor
+  prefix12_flag4_boundary4_counter4_schema_descriptor
   canonical_pulse_runs_from_iq
   canonical_pulse_base_from_iq
   canonical_pulse_classes_from_iq

@@ -4,3 +4,5 @@ te870-keyd15ea5-rep10-433920000.iq,20,131072,4736,true,3583,true,true,true,16,20
 te500-key000200-rep10-433920000.iq,20,131072,5360,true,1255,true,true,true,16,20260312,true,true,representative counter-family member
 te480-keyabcd10-rep10-433920000.iq,20,131072,3200,true,5471,true,true,true,16,20260312,true,true,representative check-and-counter family
 te520-key7ea5b0-rep10-433920000.iq,20,131072,328,true,9807,true,true,true,16,20260312,true,true,representative flag-payload-counter family
+te600-keybeef90-rep10-433920000.iq,20,131072,712,true,14855,true,true,true,32,20260312,true,true,representative prefix12-check-payload-counter family with stronger additive noise
+te640-keya5c3d0-rep10-433920000.iq,20,131072,1312,true,1423,true,true,true,32,20260312,true,true,representative prefix12-flag-payload-counter family with stronger additive noise
