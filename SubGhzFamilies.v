@@ -179,6 +179,72 @@ Proof.
   reflexivity.
 Qed.
 
+Definition RunObserver (A : Type) := Runs -> A.
+
+Definition run_observer_injective
+    {A : Type}
+    (obs : RunObserver A)
+    : Prop :=
+  forall rs1 rs2, obs rs1 = obs rs2 -> rs1 = rs2.
+
+Definition run_observer_factors_through_decoded_view
+    {A : Type}
+    (obs : RunObserver A)
+    : Prop :=
+  exists view_obs : DecodedPacketView -> A,
+    forall rs,
+      obs rs = view_obs (decoded_packet_view_from_runs rs).
+
+Theorem tx_family_decoded_view_law :
+  forall base_pattern te,
+    0 < te ->
+    active_run_lengths base_pattern <> [] ->
+    decoded_packet_view_from_runs (tx_family_member base_pattern te) =
+      decoded_packet_view_from_runs base_pattern.
+Proof.
+  intros base_pattern te Hte Hactive.
+  unfold tx_family_member.
+  apply decoded_packet_view_from_runs_scale_invariant.
+  - exact Hte.
+  - exact Hactive.
+Qed.
+
+Theorem tx_family_factored_run_observer_law :
+  forall (A : Type) (obs : RunObserver A) base_pattern te,
+    run_observer_factors_through_decoded_view obs ->
+    0 < te ->
+    active_run_lengths base_pattern <> [] ->
+    obs (tx_family_member base_pattern te) = obs base_pattern.
+Proof.
+  intros A obs base_pattern te [view_obs Hobs] Hte Hactive.
+  rewrite (Hobs (tx_family_member base_pattern te)).
+  rewrite (Hobs base_pattern).
+  rewrite tx_family_decoded_view_law by exact Hte || exact Hactive.
+  reflexivity.
+Qed.
+
+Corollary tx_family_members_share_factored_run_observer :
+  forall (A : Type) (obs : RunObserver A) base_pattern te1 te2,
+    run_observer_factors_through_decoded_view obs ->
+    0 < te1 ->
+    0 < te2 ->
+    active_run_lengths base_pattern <> [] ->
+    obs (tx_family_member base_pattern te1) =
+      obs (tx_family_member base_pattern te2).
+Proof.
+  intros A obs base_pattern te1 te2 Hfactor Hte1 Hte2 Hactive.
+  transitivity (obs base_pattern).
+  - apply tx_family_factored_run_observer_law.
+    + exact Hfactor.
+    + exact Hte1.
+    + exact Hactive.
+  - symmetry.
+    apply tx_family_factored_run_observer_law.
+    + exact Hfactor.
+    + exact Hte2.
+    + exact Hactive.
+Qed.
+
 Corollary tx_family_members_share_canonical_object :
   forall base_pattern te1 te2,
     0 < te1 ->
@@ -289,6 +355,23 @@ Proof.
   - exact Hlt.
   - exact Hpos.
   - exact Hactive.
+Qed.
+
+Theorem tx_family_members_distinct :
+  forall base_pattern te1 te2,
+    0 < te1 ->
+    te1 < te2 ->
+    runs_positive base_pattern = true ->
+    active_run_lengths base_pattern <> [] ->
+    tx_family_member base_pattern te1 <>
+      tx_family_member base_pattern te2.
+Proof.
+  intros base_pattern te1 te2 Hte1 Hlt Hpos Hactive Heq.
+  destruct
+    (tx_family_object_and_base_order_law
+       base_pattern te1 te2 Hte1 Hlt Hpos Hactive) as [_ Hbase].
+  rewrite Heq in Hbase.
+  lia.
 Qed.
 
 Theorem tx_families_with_distinct_objects_stay_separated :
@@ -1321,6 +1404,33 @@ Definition canonical_packet_schema_descriptor_fresh_sequence_from_runs
   packet_schema_descriptor_fresh_sequence_from_bits
     descriptor state (map canonical_frame_bits_from_runs rss).
 
+Record PacketSchemaDescriptorObservation := {
+  descriptor_observation_structure : list PacketStructuredFieldValue;
+  descriptor_observation_fresh : bool
+}.
+
+Definition packet_schema_descriptor_observation_from_runs
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (rs : Runs)
+    : PacketSchemaDescriptorObservation :=
+  {| descriptor_observation_structure :=
+       canonical_packet_schema_descriptor_structure_from_runs descriptor rs;
+     descriptor_observation_fresh :=
+       canonical_packet_schema_descriptor_fresh_from_runs descriptor state rs |}.
+
+Definition run_observer_factors_through_packet_schema_descriptor_observation
+    {A : Type}
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (obs : RunObserver A)
+    : Prop :=
+  exists descriptor_obs : PacketSchemaDescriptorObservation -> A,
+    forall rs,
+      obs rs =
+        descriptor_obs
+          (packet_schema_descriptor_observation_from_runs descriptor state rs).
+
 Definition static_packet24_schema_descriptor : PacketSchemaDescriptor :=
   {| descriptor_structure_spec := packet24_byte_structure_spec;
      descriptor_freshness_kind := static_packet_schema_kind |}.
@@ -1501,6 +1611,166 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem tx_family_packet_schema_descriptor_observation_law :
+  forall descriptor state base_pattern te,
+    0 < te ->
+    active_run_lengths base_pattern <> [] ->
+    packet_schema_descriptor_observation_from_runs
+      descriptor state (tx_family_member base_pattern te) =
+      packet_schema_descriptor_observation_from_runs
+        descriptor state base_pattern.
+Proof.
+  intros descriptor state base_pattern te Hte Hactive.
+  unfold packet_schema_descriptor_observation_from_runs.
+  rewrite
+    (tx_family_packet_schema_descriptor_structure_law
+       descriptor base_pattern te Hte Hactive).
+  rewrite
+    (tx_family_packet_schema_descriptor_fresh_law
+       descriptor state base_pattern te Hte Hactive).
+  reflexivity.
+Qed.
+
+Corollary tx_family_members_share_packet_schema_descriptor_observation :
+  forall descriptor state base_pattern te1 te2,
+    0 < te1 ->
+    0 < te2 ->
+    active_run_lengths base_pattern <> [] ->
+    packet_schema_descriptor_observation_from_runs
+      descriptor state (tx_family_member base_pattern te1) =
+      packet_schema_descriptor_observation_from_runs
+        descriptor state (tx_family_member base_pattern te2).
+Proof.
+  intros descriptor state base_pattern te1 te2 Hte1 Hte2 Hactive.
+  transitivity
+    (packet_schema_descriptor_observation_from_runs
+       descriptor state base_pattern).
+  - apply tx_family_packet_schema_descriptor_observation_law.
+    + exact Hte1.
+    + exact Hactive.
+  - symmetry.
+    apply tx_family_packet_schema_descriptor_observation_law.
+    + exact Hte2.
+    + exact Hactive.
+Qed.
+
+Theorem tx_family_packet_schema_descriptor_factored_run_observer_law :
+  forall (A : Type) (obs : RunObserver A) descriptor state base_pattern te,
+    run_observer_factors_through_packet_schema_descriptor_observation
+      descriptor state obs ->
+    0 < te ->
+    active_run_lengths base_pattern <> [] ->
+    obs (tx_family_member base_pattern te) = obs base_pattern.
+Proof.
+  intros A obs descriptor state base_pattern te [descriptor_obs Hobs] Hte Hactive.
+  rewrite (Hobs (tx_family_member base_pattern te)).
+  rewrite (Hobs base_pattern).
+  rewrite
+    (tx_family_packet_schema_descriptor_observation_law
+       descriptor state base_pattern te Hte Hactive).
+  reflexivity.
+Qed.
+
+Corollary tx_family_members_share_packet_schema_descriptor_factored_run_observer :
+  forall (A : Type) (obs : RunObserver A) descriptor state base_pattern te1 te2,
+    run_observer_factors_through_packet_schema_descriptor_observation
+      descriptor state obs ->
+    0 < te1 ->
+    0 < te2 ->
+    active_run_lengths base_pattern <> [] ->
+    obs (tx_family_member base_pattern te1) =
+      obs (tx_family_member base_pattern te2).
+Proof.
+  intros A obs descriptor state base_pattern te1 te2 Hfactor Hte1 Hte2 Hactive.
+  transitivity (obs base_pattern).
+  - apply
+      (tx_family_packet_schema_descriptor_factored_run_observer_law
+         A obs descriptor state base_pattern te1).
+    + exact Hfactor.
+    + exact Hte1.
+    + exact Hactive.
+  - symmetry.
+    apply
+      (tx_family_packet_schema_descriptor_factored_run_observer_law
+         A obs descriptor state base_pattern te2).
+    + exact Hfactor.
+    + exact Hte2.
+    + exact Hactive.
+Qed.
+
+Theorem tx_family_packet_schema_descriptor_factored_run_observer_blind_pair :
+  forall (A : Type) (obs : RunObserver A)
+         descriptor state base_pattern te1 te2,
+    run_observer_factors_through_packet_schema_descriptor_observation
+      descriptor state obs ->
+    0 < te1 ->
+    te1 < te2 ->
+    runs_positive base_pattern = true ->
+    active_run_lengths base_pattern <> [] ->
+    tx_family_member base_pattern te1 <>
+      tx_family_member base_pattern te2 /\
+    obs (tx_family_member base_pattern te1) =
+      obs (tx_family_member base_pattern te2).
+Proof.
+  intros A obs descriptor state base_pattern te1 te2
+    Hfactor Hte1 Hlt Hpos Hactive.
+  split.
+  - apply tx_family_members_distinct.
+    + exact Hte1.
+    + exact Hlt.
+    + exact Hpos.
+    + exact Hactive.
+  - apply
+      (tx_family_members_share_packet_schema_descriptor_factored_run_observer
+         A obs descriptor state base_pattern te1 te2).
+    + exact Hfactor.
+    + exact Hte1.
+    + lia.
+    + exact Hactive.
+Qed.
+
+Theorem tx_family_packet_schema_descriptor_factored_run_observer_noninjective :
+  forall (A : Type) (obs : RunObserver A) descriptor state base_pattern,
+    run_observer_factors_through_packet_schema_descriptor_observation
+      descriptor state obs ->
+    runs_positive base_pattern = true ->
+    active_run_lengths base_pattern <> [] ->
+    exists rs1 rs2,
+      rs1 <> rs2 /\ obs rs1 = obs rs2.
+Proof.
+  intros A obs descriptor state base_pattern Hfactor Hpos Hactive.
+  destruct
+    (tx_family_packet_schema_descriptor_factored_run_observer_blind_pair
+       A obs descriptor state base_pattern 1 2 Hfactor) as [Hneq Hobs].
+  - lia.
+  - lia.
+  - exact Hpos.
+  - exact Hactive.
+  - exists (tx_family_member base_pattern 1).
+    exists (tx_family_member base_pattern 2).
+    split.
+    + exact Hneq.
+    + exact Hobs.
+Qed.
+
+Theorem tx_family_packet_schema_descriptor_factored_run_observer_not_injective :
+  forall (A : Type) (obs : RunObserver A) descriptor state base_pattern,
+    run_observer_factors_through_packet_schema_descriptor_observation
+      descriptor state obs ->
+    runs_positive base_pattern = true ->
+    active_run_lengths base_pattern <> [] ->
+    ~ run_observer_injective obs.
+Proof.
+  intros A obs descriptor state base_pattern Hfactor Hpos Hactive Hinjective.
+  destruct
+    (tx_family_packet_schema_descriptor_factored_run_observer_noninjective
+       A obs descriptor state base_pattern Hfactor Hpos Hactive)
+    as [rs1 [rs2 [Hneq Hobs]]].
+  apply Hneq.
+  apply Hinjective.
+  exact Hobs.
+Qed.
+
 Theorem predicted_tx_family_packet_schema_descriptor_freshes_constant :
   forall descriptor state base_pattern tes,
     Forall (fun te => 0 < te) tes ->
@@ -1622,6 +1892,117 @@ Proof.
             descriptor state (canonical_frame_bits_from_runs base_pattern))
          Htes' Hfresh0).
     reflexivity.
+Qed.
+
+Definition TxScheduleObserver (A : Type) := list nat -> A.
+
+Definition tx_schedule_observer_injective
+    {A : Type}
+    (obs : TxScheduleObserver A)
+    : Prop :=
+  forall tes1 tes2, obs tes1 = obs tes2 -> tes1 = tes2.
+
+Definition tx_schedule_observer_factors_through_packet_schema_descriptor_fresh_sequence
+    {A : Type}
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (base_pattern : Runs)
+    (obs : TxScheduleObserver A)
+    : Prop :=
+  exists fresh_obs : list bool -> A,
+    forall tes,
+      obs tes =
+        fresh_obs
+          (predicted_tx_family_packet_schema_descriptor_fresh_sequence
+             descriptor state base_pattern tes).
+
+Theorem predicted_tx_family_packet_schema_descriptor_fresh_sequence_length_invariant :
+  forall descriptor state base_pattern tes1 tes2,
+    Forall (fun te => 0 < te) tes1 ->
+    Forall (fun te => 0 < te) tes2 ->
+    length tes1 = length tes2 ->
+    active_run_lengths base_pattern <> [] ->
+    predicted_tx_family_packet_schema_descriptor_fresh_sequence
+      descriptor state base_pattern tes1 =
+      predicted_tx_family_packet_schema_descriptor_fresh_sequence
+        descriptor state base_pattern tes2.
+Proof.
+  intros descriptor state base_pattern tes1 tes2 Htes1 Htes2 Hlen Hactive.
+  rewrite
+    (predicted_tx_family_packet_schema_descriptor_fresh_sequence_constant
+       descriptor state base_pattern tes1 Htes1 Hactive).
+  rewrite
+    (predicted_tx_family_packet_schema_descriptor_fresh_sequence_constant
+       descriptor state base_pattern tes2 Htes2 Hactive).
+  destruct tes1 as [|te1 tes1']; destruct tes2 as [|te2 tes2']; simpl in Hlen.
+  - reflexivity.
+  - discriminate.
+  - discriminate.
+  - injection Hlen as Hlen'.
+    simpl.
+    rewrite Hlen'.
+    reflexivity.
+Qed.
+
+Theorem tx_schedule_observer_factored_through_packet_schema_descriptor_fresh_sequence_length_law :
+  forall (A : Type) (obs : TxScheduleObserver A)
+         descriptor state base_pattern tes1 tes2,
+    tx_schedule_observer_factors_through_packet_schema_descriptor_fresh_sequence
+      descriptor state base_pattern obs ->
+    Forall (fun te => 0 < te) tes1 ->
+    Forall (fun te => 0 < te) tes2 ->
+    length tes1 = length tes2 ->
+    active_run_lengths base_pattern <> [] ->
+    obs tes1 = obs tes2.
+Proof.
+  intros A obs descriptor state base_pattern tes1 tes2
+    [fresh_obs Hobs] Htes1 Htes2 Hlen Hactive.
+  rewrite (Hobs tes1).
+  rewrite (Hobs tes2).
+  rewrite
+    (predicted_tx_family_packet_schema_descriptor_fresh_sequence_length_invariant
+       descriptor state base_pattern tes1 tes2 Htes1 Htes2 Hlen Hactive).
+  reflexivity.
+Qed.
+
+Theorem tx_schedule_observer_factored_through_packet_schema_descriptor_fresh_sequence_noninjective :
+  forall (A : Type) (obs : TxScheduleObserver A) descriptor state base_pattern,
+    tx_schedule_observer_factors_through_packet_schema_descriptor_fresh_sequence
+      descriptor state base_pattern obs ->
+    active_run_lengths base_pattern <> [] ->
+    exists tes1 tes2,
+      tes1 <> tes2 /\ obs tes1 = obs tes2.
+Proof.
+  intros A obs descriptor state base_pattern Hfactor Hactive.
+  exists [1].
+  exists [2].
+  split.
+  - discriminate.
+  - apply
+      (tx_schedule_observer_factored_through_packet_schema_descriptor_fresh_sequence_length_law
+         A obs descriptor state base_pattern [1] [2]).
+    + exact Hfactor.
+    + repeat constructor; lia.
+    + repeat constructor; lia.
+    + reflexivity.
+    + exact Hactive.
+Qed.
+
+Theorem tx_schedule_observer_factored_through_packet_schema_descriptor_fresh_sequence_not_injective :
+  forall (A : Type) (obs : TxScheduleObserver A) descriptor state base_pattern,
+    tx_schedule_observer_factors_through_packet_schema_descriptor_fresh_sequence
+      descriptor state base_pattern obs ->
+    active_run_lengths base_pattern <> [] ->
+    ~ tx_schedule_observer_injective obs.
+Proof.
+  intros A obs descriptor state base_pattern Hfactor Hactive Hinjective.
+  destruct
+    (tx_schedule_observer_factored_through_packet_schema_descriptor_fresh_sequence_noninjective
+       A obs descriptor state base_pattern Hfactor Hactive)
+    as [tes1 [tes2 [Hneq Hobs]]].
+  apply Hneq.
+  apply Hinjective.
+  exact Hobs.
 Qed.
 
 Corollary class_preserving_run_jitter_family_packet_schema_fresh_invariant :

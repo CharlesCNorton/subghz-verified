@@ -2309,6 +2309,121 @@ Proof.
   - exact Hneq.
 Qed.
 
+Definition PulseClassObserver (A : Type) := list PulseClass -> A.
+
+Definition pulse_class_observer_injective
+    {A : Type}
+    (obs : PulseClassObserver A)
+    : Prop :=
+  forall xs ys, obs xs = obs ys -> xs = ys.
+
+Definition observer_factors_through_frame_bits
+    {A : Type}
+    (obs : PulseClassObserver A)
+    : Prop :=
+  exists bit_obs : list bool -> A,
+    forall xs,
+      obs xs = bit_obs (frame_bits_from_classes xs).
+
+Definition observer_factors_through_decoded_view
+    {A : Type}
+    (obs : PulseClassObserver A)
+    : Prop :=
+  exists view_obs : DecodedPacketView -> A,
+    forall xs,
+      obs xs = view_obs (decoded_packet_view_from_classes xs).
+
+Theorem frame_bit_observer_tail_invariant :
+  forall (A : Type) (bit_obs : list bool -> A) bits n1 n2,
+    bits <> ([] : list bool) ->
+    bit_obs
+      (frame_bits_from_classes
+         (classes_of_bits bits ++ repeat MarkShort n1)) =
+    bit_obs
+      (frame_bits_from_classes
+         (classes_of_bits bits ++ repeat MarkShort n2)).
+Proof.
+  intros A bit_obs bits n1 n2 Hbits.
+  rewrite
+    (classes_of_bits_suffix_alias
+       bits
+       (repeat MarkShort n1)
+       (repeat MarkShort n2)
+       Hbits).
+  reflexivity.
+Qed.
+
+Theorem decoded_view_observer_tail_invariant :
+  forall (A : Type) (view_obs : DecodedPacketView -> A) bits n1 n2,
+    bits <> ([] : list bool) ->
+    view_obs
+      (decoded_packet_view_from_classes
+         (classes_of_bits bits ++ repeat MarkShort n1)) =
+    view_obs
+      (decoded_packet_view_from_classes
+         (classes_of_bits bits ++ repeat MarkShort n2)).
+Proof.
+  intros A view_obs bits n1 n2 Hbits.
+  rewrite (decoded_packet_view_infinite_tail_family bits n1 n2 Hbits).
+  reflexivity.
+Qed.
+
+Theorem decoded_view_factored_observer_infinite_blind_family :
+  forall (A : Type) (obs : PulseClassObserver A) bits n1 n2,
+    observer_factors_through_decoded_view obs ->
+    bits <> ([] : list bool) ->
+    n1 <> n2 ->
+    classes_of_bits bits ++ repeat MarkShort n1 <>
+      classes_of_bits bits ++ repeat MarkShort n2
+    /\
+    obs (classes_of_bits bits ++ repeat MarkShort n1) =
+      obs (classes_of_bits bits ++ repeat MarkShort n2).
+Proof.
+  intros A obs bits n1 n2 [view_obs Hobs] Hbits Hneq.
+  split.
+  - apply decoded_packet_view_tail_family_distinct.
+    + exact Hbits.
+    + exact Hneq.
+  - rewrite (Hobs (classes_of_bits bits ++ repeat MarkShort n1)).
+    rewrite (Hobs (classes_of_bits bits ++ repeat MarkShort n2)).
+    apply decoded_view_observer_tail_invariant.
+    exact Hbits.
+Qed.
+
+Theorem decoded_view_factored_observer_noninjective :
+  forall (A : Type) (obs : PulseClassObserver A) bits,
+    observer_factors_through_decoded_view obs ->
+    bits <> ([] : list bool) ->
+    exists xs ys,
+      xs <> ys /\ obs xs = obs ys.
+Proof.
+  intros A obs bits Hfactor Hbits.
+  destruct
+    (decoded_view_factored_observer_infinite_blind_family
+       A obs bits 1 2 Hfactor Hbits) as [Hneq Hobs].
+  - lia.
+  - exists (classes_of_bits bits ++ repeat MarkShort 1).
+    exists (classes_of_bits bits ++ repeat MarkShort 2).
+    split.
+    + exact Hneq.
+    + exact Hobs.
+Qed.
+
+Theorem decoded_view_factored_observer_not_injective :
+  forall (A : Type) (obs : PulseClassObserver A) bits,
+    observer_factors_through_decoded_view obs ->
+    bits <> ([] : list bool) ->
+    ~ pulse_class_observer_injective obs.
+Proof.
+  intros A obs bits Hfactor Hbits Hinjective.
+  destruct
+    (decoded_view_factored_observer_noninjective
+       A obs bits Hfactor Hbits) as [xs [ys [Hneq Hobs]]].
+  apply Hneq.
+  apply Hinjective.
+  exact Hobs.
+Qed.
+
 Theorem pulse_base_from_runs_canonical :
   forall rs,
     canonical_pulse_base_from_runs rs = pulse_base_from_runs rs.
@@ -2933,6 +3048,40 @@ Proof.
   - reflexivity.
   - exact Hfactor.
   - exact Hactive.
+Qed.
+
+Theorem decoded_packet_view_from_runs_scale_invariant :
+  forall factor rs,
+    0 < factor ->
+    active_run_lengths rs <> [] ->
+    decoded_packet_view_from_runs (scale_runs factor rs) =
+      decoded_packet_view_from_runs rs.
+Proof.
+  intros factor rs Hfactor Hactive.
+  unfold decoded_packet_view_from_runs.
+  rewrite canonical_normalized_pulse_classes_scale_invariant.
+  - reflexivity.
+  - exact Hfactor.
+  - exact Hactive.
+Qed.
+
+Corollary decoded_packet_view_from_runs_pairwise_scale_equal :
+  forall factor1 factor2 rs,
+    0 < factor1 ->
+    0 < factor2 ->
+    active_run_lengths rs <> [] ->
+    decoded_packet_view_from_runs (scale_runs factor1 rs) =
+      decoded_packet_view_from_runs (scale_runs factor2 rs).
+Proof.
+  intros factor1 factor2 rs Hfactor1 Hfactor2 Hactive.
+  transitivity (decoded_packet_view_from_runs rs).
+  - apply decoded_packet_view_from_runs_scale_invariant.
+    + exact Hfactor1.
+    + exact Hactive.
+  - symmetry.
+    apply decoded_packet_view_from_runs_scale_invariant.
+    + exact Hfactor2.
+    + exact Hactive.
 Qed.
 
 Corollary canonical_packet24_pairwise_scale_equal :

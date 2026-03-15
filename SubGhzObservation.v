@@ -1271,6 +1271,14 @@ Definition ByteStream := list Byte.
 Definition IQPair := (Byte * Byte)%type.
 Definition IQTrace := list IQPair.
 
+Definition IQObserver (A : Type) := ByteStream -> A.
+
+Definition iq_observer_injective
+    {A : Type}
+    (obs : IQObserver A)
+    : Prop :=
+  forall xs ys, obs xs = obs ys -> xs = ys.
+
 Fixpoint bytes_to_iq (xs : ByteStream) : IQTrace :=
   match xs with
   | i :: q :: xs' => (i, q) :: bytes_to_iq xs'
@@ -1291,6 +1299,16 @@ Definition iq_byte_pair_energy (i q : Byte) : Power :=
   let di := centered_twice_abs i in
   let dq := centered_twice_abs q in
   di * di + dq * dq.
+
+Theorem iq_byte_pair_energy_sym :
+  forall i q,
+    iq_byte_pair_energy i q = iq_byte_pair_energy q i.
+Proof.
+  intros i q.
+  unfold iq_byte_pair_energy.
+  rewrite Nat.add_comm.
+  reflexivity.
+Qed.
 
 Definition iq_energy_trace (xs : ByteStream) : PowerTrace :=
   map iq_pair_energy (bytes_to_iq xs).
@@ -1456,6 +1474,15 @@ Definition canonical_packet24_field_view_from_iq
     : Packet24FieldView :=
   packet24_field_view_from_bits (canonical_frame_bits_from_iq window_pairs threshold xs).
 
+Definition decoded_packet_view_from_iq
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    : DecodedPacketView :=
+  {| view_bits := canonical_frame_bits_from_iq window_pairs threshold xs;
+     view_word := canonical_frame_word_from_iq window_pairs threshold xs;
+     view_packet24 := canonical_packet24_from_iq window_pairs threshold xs;
+     view_fields := canonical_packet24_field_view_from_iq window_pairs threshold xs |}.
+
 Definition canonical_packet_structure_view_from_iq
     (spec : PacketStructureSpec)
     (window_pairs threshold : nat)
@@ -1519,6 +1546,42 @@ Definition canonical_packet_schema_descriptor_fresh_from_iq
   packet_schema_descriptor_fresh_from_bits
     descriptor state
     (canonical_frame_bits_from_iq window_pairs threshold xs).
+
+Definition packet_schema_descriptor_observation_from_iq
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    : PacketSchemaDescriptorObservation :=
+  {| descriptor_observation_structure :=
+       canonical_packet_schema_descriptor_structure_from_iq
+         descriptor window_pairs threshold xs;
+     descriptor_observation_fresh :=
+       canonical_packet_schema_descriptor_fresh_from_iq
+         descriptor state window_pairs threshold xs |}.
+
+Definition iq_observer_factors_through_decoded_view
+    {A : Type}
+    (window_pairs threshold : nat)
+    (obs : IQObserver A)
+    : Prop :=
+  exists view_obs : DecodedPacketView -> A,
+    forall xs,
+      obs xs = view_obs (decoded_packet_view_from_iq window_pairs threshold xs).
+
+Definition iq_observer_factors_through_packet_schema_descriptor_observation
+    {A : Type}
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (window_pairs threshold : nat)
+    (obs : IQObserver A)
+    : Prop :=
+  exists descriptor_obs : PacketSchemaDescriptorObservation -> A,
+    forall xs,
+      obs xs =
+        descriptor_obs
+          (packet_schema_descriptor_observation_from_iq
+             descriptor state window_pairs threshold xs).
 
 Definition canonical_packet_schema_descriptor_fresh_sequence_from_iq
     (descriptor : PacketSchemaDescriptor)
@@ -1616,6 +1679,23 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem iq_window_energy_equivalent_implies_decoded_view_invariant :
+  forall window_pairs threshold xs ys,
+    iq_window_energy_equivalent window_pairs xs ys ->
+    decoded_packet_view_from_iq window_pairs threshold xs =
+      decoded_packet_view_from_iq window_pairs threshold ys.
+Proof.
+  intros window_pairs threshold xs ys Heq.
+  unfold decoded_packet_view_from_iq,
+    canonical_frame_word_from_iq,
+    canonical_packet24_from_iq,
+    canonical_packet24_field_view_from_iq.
+  rewrite
+    (iq_window_energy_equivalent_implies_frame_bits_invariant
+       window_pairs threshold xs ys Heq).
+  reflexivity.
+Qed.
+
 Theorem iq_window_energy_equivalent_implies_packet_schema_descriptor_structure_invariant :
   forall descriptor window_pairs threshold xs ys,
     iq_window_energy_equivalent window_pairs xs ys ->
@@ -1661,6 +1741,172 @@ Proof.
   rewrite (iq_window_energy_equivalent_implies_frame_bits_invariant
              window_pairs threshold xs ys Heq).
   reflexivity.
+Qed.
+
+Theorem iq_window_energy_equivalent_implies_packet_schema_descriptor_observation_invariant :
+  forall descriptor state window_pairs threshold xs ys,
+    iq_window_energy_equivalent window_pairs xs ys ->
+    packet_schema_descriptor_observation_from_iq
+      descriptor state window_pairs threshold xs =
+      packet_schema_descriptor_observation_from_iq
+        descriptor state window_pairs threshold ys.
+Proof.
+  intros descriptor state window_pairs threshold xs ys Heq.
+  unfold packet_schema_descriptor_observation_from_iq.
+  rewrite
+    (iq_window_energy_equivalent_implies_packet_schema_descriptor_structure_invariant
+       descriptor window_pairs threshold xs ys Heq).
+  rewrite
+    (iq_window_energy_equivalent_implies_packet_schema_descriptor_fresh_invariant
+       descriptor state window_pairs threshold xs ys Heq).
+  reflexivity.
+Qed.
+
+Theorem iq_window_energy_equivalent_factored_decoded_view_observer_invariant :
+  forall (A : Type) (obs : IQObserver A) window_pairs threshold xs ys,
+    iq_observer_factors_through_decoded_view window_pairs threshold obs ->
+    iq_window_energy_equivalent window_pairs xs ys ->
+    obs xs = obs ys.
+Proof.
+  intros A obs window_pairs threshold xs ys [view_obs Hobs] Heq.
+  rewrite (Hobs xs).
+  rewrite (Hobs ys).
+  rewrite
+    (iq_window_energy_equivalent_implies_decoded_view_invariant
+       window_pairs threshold xs ys Heq).
+  reflexivity.
+Qed.
+
+Theorem iq_window_energy_equivalent_factored_packet_schema_descriptor_observer_invariant :
+  forall (A : Type) (obs : IQObserver A)
+         descriptor state window_pairs threshold xs ys,
+    iq_observer_factors_through_packet_schema_descriptor_observation
+      descriptor state window_pairs threshold obs ->
+    iq_window_energy_equivalent window_pairs xs ys ->
+    obs xs = obs ys.
+Proof.
+  intros A obs descriptor state window_pairs threshold xs ys
+    [descriptor_obs Hobs] Heq.
+  rewrite (Hobs xs).
+  rewrite (Hobs ys).
+  rewrite
+    (iq_window_energy_equivalent_implies_packet_schema_descriptor_observation_invariant
+       descriptor state window_pairs threshold xs ys Heq).
+  reflexivity.
+Qed.
+
+Theorem iq_window_energy_equivalent_single_pair_swap :
+  forall i q,
+    iq_window_energy_equivalent 1 [i; q] [q; i].
+Proof.
+  intros i q.
+  unfold iq_window_energy_equivalent, iq_window_energy_trace.
+  simpl.
+  rewrite iq_byte_pair_energy_sym.
+  reflexivity.
+Qed.
+
+Theorem decoded_view_factored_iq_observer_single_pair_swap_blindness :
+  forall (A : Type) (obs : IQObserver A) (threshold : nat) (i q : Byte),
+    iq_observer_factors_through_decoded_view 1 threshold obs ->
+    obs [i; q] = obs [q; i].
+Proof.
+  intros A obs threshold i q Hfactor.
+  apply
+    (iq_window_energy_equivalent_factored_decoded_view_observer_invariant
+       A obs 1 threshold [i; q] [q; i]).
+  - exact Hfactor.
+  - apply iq_window_energy_equivalent_single_pair_swap.
+Qed.
+
+Theorem packet_schema_descriptor_factored_iq_observer_single_pair_swap_blindness :
+  forall (A : Type) (obs : IQObserver A) descriptor state
+         (threshold : nat) (i q : Byte),
+    iq_observer_factors_through_packet_schema_descriptor_observation
+      descriptor state 1 threshold obs ->
+    obs [i; q] = obs [q; i].
+Proof.
+  intros A obs descriptor state threshold i q Hfactor.
+  apply
+    (iq_window_energy_equivalent_factored_packet_schema_descriptor_observer_invariant
+       A obs descriptor state 1 threshold [i; q] [q; i]).
+  - exact Hfactor.
+  - apply iq_window_energy_equivalent_single_pair_swap.
+Qed.
+
+Theorem decoded_view_factored_iq_observer_noninjective :
+  forall (A : Type) (obs : IQObserver A) (threshold : nat) (i q : Byte),
+    iq_observer_factors_through_decoded_view 1 threshold obs ->
+    i <> q ->
+    exists xs ys,
+      xs <> ys /\ obs xs = obs ys.
+Proof.
+  intros A obs threshold i q Hfactor Hneq.
+  exists [i; q].
+  exists [q; i].
+  split.
+  - intro Heq.
+    inversion Heq.
+    contradiction.
+  - apply
+      (decoded_view_factored_iq_observer_single_pair_swap_blindness
+         A obs threshold i q).
+    exact Hfactor.
+Qed.
+
+Theorem packet_schema_descriptor_factored_iq_observer_noninjective :
+  forall (A : Type) (obs : IQObserver A) descriptor state
+         (threshold : nat) (i q : Byte),
+    iq_observer_factors_through_packet_schema_descriptor_observation
+      descriptor state 1 threshold obs ->
+    i <> q ->
+    exists xs ys,
+      xs <> ys /\ obs xs = obs ys.
+Proof.
+  intros A obs descriptor state threshold i q Hfactor Hneq.
+  exists [i; q].
+  exists [q; i].
+  split.
+  - intro Heq.
+    inversion Heq.
+    contradiction.
+  - apply
+      (packet_schema_descriptor_factored_iq_observer_single_pair_swap_blindness
+         A obs descriptor state threshold i q).
+    exact Hfactor.
+Qed.
+
+Theorem decoded_view_factored_iq_observer_not_injective :
+  forall (A : Type) (obs : IQObserver A) (threshold : nat) (i q : Byte),
+    iq_observer_factors_through_decoded_view 1 threshold obs ->
+    i <> q ->
+    ~ iq_observer_injective obs.
+Proof.
+  intros A obs threshold i q Hfactor Hneq Hinjective.
+  destruct
+    (decoded_view_factored_iq_observer_noninjective
+       A obs threshold i q Hfactor Hneq) as [xs [ys [Hxy Hobs]]].
+  apply Hxy.
+  apply Hinjective.
+  exact Hobs.
+Qed.
+
+Theorem packet_schema_descriptor_factored_iq_observer_not_injective :
+  forall (A : Type) (obs : IQObserver A) descriptor state
+         (threshold : nat) (i q : Byte),
+    iq_observer_factors_through_packet_schema_descriptor_observation
+      descriptor state 1 threshold obs ->
+    i <> q ->
+    ~ iq_observer_injective obs.
+Proof.
+  intros A obs descriptor state threshold i q Hfactor Hneq Hinjective.
+  destruct
+    (packet_schema_descriptor_factored_iq_observer_noninjective
+       A obs descriptor state threshold i q Hfactor Hneq)
+    as [xs [ys [Hxy Hobs]]].
+  apply Hxy.
+  apply Hinjective.
+  exact Hobs.
 Qed.
 
 Theorem canonical_frame_bits_from_iq_margin_invariant :
@@ -2384,6 +2630,25 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem observed_iq_matches_family_implies_decoded_view :
+  forall base_pattern window_pairs threshold xs,
+    observed_iq_matches_family base_pattern window_pairs threshold xs ->
+    decoded_packet_view_from_iq window_pairs threshold xs =
+      decoded_packet_view_from_runs base_pattern.
+Proof.
+  intros base_pattern window_pairs threshold xs Hmatch.
+  unfold decoded_packet_view_from_iq, decoded_packet_view_from_runs.
+  rewrite (observed_iq_matches_family_implies_frame_bits
+             base_pattern window_pairs threshold xs Hmatch).
+  rewrite (observed_iq_matches_family_implies_frame_word
+             base_pattern window_pairs threshold xs Hmatch).
+  rewrite (observed_iq_matches_family_implies_packet24
+             base_pattern window_pairs threshold xs Hmatch).
+  rewrite (observed_iq_matches_family_implies_field_view
+             base_pattern window_pairs threshold xs Hmatch).
+  reflexivity.
+Qed.
+
 Theorem observed_iq_matches_family_implies_packet_structure :
   forall spec base_pattern window_pairs threshold xs,
     observed_iq_matches_family base_pattern window_pairs threshold xs ->
@@ -2408,6 +2673,60 @@ Proof.
   unfold canonical_field_counter_view_from_iq, canonical_field_counter_view_from_runs.
   rewrite (observed_iq_matches_family_implies_frame_bits
              base_pattern window_pairs threshold xs Hmatch).
+  reflexivity.
+Qed.
+
+Theorem observed_iq_matches_family_implies_packet_schema_descriptor_structure :
+  forall descriptor base_pattern window_pairs threshold xs,
+    observed_iq_matches_family base_pattern window_pairs threshold xs ->
+    canonical_packet_schema_descriptor_structure_from_iq
+      descriptor window_pairs threshold xs =
+      canonical_packet_schema_descriptor_structure_from_runs
+        descriptor base_pattern.
+Proof.
+  intros descriptor base_pattern window_pairs threshold xs Hmatch.
+  unfold canonical_packet_schema_descriptor_structure_from_iq,
+    canonical_packet_schema_descriptor_structure_from_runs,
+    packet_schema_descriptor_structure_from_bits.
+  rewrite (observed_iq_matches_family_implies_frame_bits
+             base_pattern window_pairs threshold xs Hmatch).
+  reflexivity.
+Qed.
+
+Theorem observed_iq_matches_family_implies_packet_schema_descriptor_fresh :
+  forall descriptor state base_pattern window_pairs threshold xs,
+    observed_iq_matches_family base_pattern window_pairs threshold xs ->
+    canonical_packet_schema_descriptor_fresh_from_iq
+      descriptor state window_pairs threshold xs =
+      canonical_packet_schema_descriptor_fresh_from_runs
+        descriptor state base_pattern.
+Proof.
+  intros descriptor state base_pattern window_pairs threshold xs Hmatch.
+  unfold canonical_packet_schema_descriptor_fresh_from_iq,
+    canonical_packet_schema_descriptor_fresh_from_runs,
+    packet_schema_descriptor_fresh_from_bits.
+  rewrite (observed_iq_matches_family_implies_frame_bits
+             base_pattern window_pairs threshold xs Hmatch).
+  reflexivity.
+Qed.
+
+Theorem observed_iq_matches_family_implies_packet_schema_descriptor_observation :
+  forall descriptor state base_pattern window_pairs threshold xs,
+    observed_iq_matches_family base_pattern window_pairs threshold xs ->
+    packet_schema_descriptor_observation_from_iq
+      descriptor state window_pairs threshold xs =
+      packet_schema_descriptor_observation_from_runs
+        descriptor state base_pattern.
+Proof.
+  intros descriptor state base_pattern window_pairs threshold xs Hmatch.
+  unfold packet_schema_descriptor_observation_from_iq,
+    packet_schema_descriptor_observation_from_runs.
+  rewrite
+    (observed_iq_matches_family_implies_packet_schema_descriptor_structure
+       descriptor base_pattern window_pairs threshold xs Hmatch).
+  rewrite
+    (observed_iq_matches_family_implies_packet_schema_descriptor_fresh
+       descriptor state base_pattern window_pairs threshold xs Hmatch).
   reflexivity.
 Qed.
 
@@ -2570,6 +2889,30 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem class_invariant_between_iq_regimes_implies_packet_schema_descriptor_observation_invariant :
+  forall descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    canonical_pulse_classes_from_iq window_pairs1 threshold1 xs =
+      canonical_pulse_classes_from_iq window_pairs2 threshold2 xs ->
+    packet_schema_descriptor_observation_from_iq
+      descriptor state window_pairs1 threshold1 xs =
+      packet_schema_descriptor_observation_from_iq
+        descriptor state window_pairs2 threshold2 xs.
+Proof.
+  intros descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses.
+  unfold packet_schema_descriptor_observation_from_iq.
+  rewrite
+    (frame_bits_invariant_between_iq_regimes_implies_packet_schema_descriptor_structure_invariant
+       descriptor window_pairs1 threshold1 window_pairs2 threshold2 xs).
+  - rewrite
+      (frame_bits_invariant_between_iq_regimes_implies_packet_schema_descriptor_fresh_invariant
+         descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs).
+    + reflexivity.
+    + apply class_invariant_between_iq_regimes_implies_frame_bits_invariant.
+      exact Hclasses.
+  - apply class_invariant_between_iq_regimes_implies_frame_bits_invariant.
+    exact Hclasses.
+Qed.
+
 Theorem class_invariant_between_iq_regimes_implies_frame_word_invariant :
   forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
     canonical_pulse_classes_from_iq window_pairs1 threshold1 xs =
@@ -2613,6 +2956,26 @@ Proof.
   intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses.
   unfold canonical_packet24_field_view_from_iq.
   rewrite (class_invariant_between_iq_regimes_implies_frame_bits_invariant
+             window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
+  reflexivity.
+Qed.
+
+Theorem class_invariant_between_iq_regimes_implies_decoded_view_invariant :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    canonical_pulse_classes_from_iq window_pairs1 threshold1 xs =
+      canonical_pulse_classes_from_iq window_pairs2 threshold2 xs ->
+    decoded_packet_view_from_iq window_pairs1 threshold1 xs =
+      decoded_packet_view_from_iq window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses.
+  unfold decoded_packet_view_from_iq.
+  rewrite (class_invariant_between_iq_regimes_implies_frame_bits_invariant
+             window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
+  rewrite (class_invariant_between_iq_regimes_implies_frame_word_invariant
+             window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
+  rewrite (class_invariant_between_iq_regimes_implies_packet24_invariant
+             window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
+  rewrite (class_invariant_between_iq_regimes_implies_field_view_invariant
              window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
   reflexivity.
 Qed.
@@ -2740,6 +3103,135 @@ Proof.
   intros window_pairs threshold xs ys zs Hxy Hyz.
   unfold same_emitter_class_iq in *.
   congruence.
+Qed.
+
+Theorem iq_window_energy_equivalent_implies_same_emitter_class_iq :
+  forall window_pairs threshold xs ys,
+    iq_window_energy_equivalent window_pairs xs ys ->
+    same_emitter_class_iq window_pairs threshold xs ys.
+Proof.
+  intros window_pairs threshold xs ys Heq.
+  unfold same_emitter_class_iq, emitter_class_from_iq,
+    canonical_pulse_classes_from_iq.
+  rewrite (iq_window_energy_equivalent_implies_pulse_runs_invariant
+             window_pairs threshold xs ys Heq).
+  reflexivity.
+Qed.
+
+Theorem iq_window_energy_equivalent_implies_descriptor_invariant :
+  forall window_pairs threshold xs ys,
+    iq_window_energy_equivalent window_pairs xs ys ->
+    family_descriptor_from_iq window_pairs threshold xs =
+      family_descriptor_from_iq window_pairs threshold ys.
+Proof.
+  intros window_pairs threshold xs ys Heq.
+  unfold family_descriptor_from_iq, canonical_pulse_classes_from_iq.
+  rewrite (iq_window_energy_equivalent_implies_pulse_runs_invariant
+             window_pairs threshold xs ys Heq).
+  rewrite (iq_window_energy_equivalent_implies_frame_bits_invariant
+             window_pairs threshold xs ys Heq).
+  reflexivity.
+Qed.
+
+Theorem iq_window_energy_equivalent_implies_semantic_tower_invariant :
+  forall window_pairs threshold xs ys,
+    iq_window_energy_equivalent window_pairs xs ys ->
+    semantic_tower_from_iq window_pairs threshold xs =
+      semantic_tower_from_iq window_pairs threshold ys.
+Proof.
+  intros window_pairs threshold xs ys Heq.
+  unfold semantic_tower_from_iq, canonical_pulse_classes_from_iq,
+    canonical_frame_word_from_iq, canonical_packet24_from_iq,
+    canonical_packet24_field_view_from_iq.
+  rewrite (iq_window_energy_equivalent_implies_pulse_runs_invariant
+             window_pairs threshold xs ys Heq).
+  rewrite (iq_window_energy_equivalent_implies_frame_bits_invariant
+             window_pairs threshold xs ys Heq).
+  reflexivity.
+Qed.
+
+Theorem single_pair_swap_same_emitter_class_iq :
+  forall (threshold : nat) (i q : Byte),
+    same_emitter_class_iq 1 threshold [i; q] [q; i].
+Proof.
+  intros threshold i q.
+  apply iq_window_energy_equivalent_implies_same_emitter_class_iq.
+  apply iq_window_energy_equivalent_single_pair_swap.
+Qed.
+
+Theorem single_pair_swap_descriptor_invariant :
+  forall (threshold : nat) (i q : Byte),
+    family_descriptor_from_iq 1 threshold [i; q] =
+      family_descriptor_from_iq 1 threshold [q; i].
+Proof.
+  intros threshold i q.
+  apply iq_window_energy_equivalent_implies_descriptor_invariant.
+  apply iq_window_energy_equivalent_single_pair_swap.
+Qed.
+
+Theorem single_pair_swap_semantic_tower_invariant :
+  forall (threshold : nat) (i q : Byte),
+    semantic_tower_from_iq 1 threshold [i; q] =
+      semantic_tower_from_iq 1 threshold [q; i].
+Proof.
+  intros threshold i q.
+  apply iq_window_energy_equivalent_implies_semantic_tower_invariant.
+  apply iq_window_energy_equivalent_single_pair_swap.
+Qed.
+
+Theorem emitter_class_from_iq_noninjective :
+  forall (threshold : nat) (i q : Byte),
+    i <> q ->
+    exists xs ys,
+      xs <> ys /\
+      emitter_class_from_iq 1 threshold xs =
+        emitter_class_from_iq 1 threshold ys.
+Proof.
+  intros threshold i q Hneq.
+  exists [i; q].
+  exists [q; i].
+  split.
+  - intro Heq.
+    inversion Heq.
+    contradiction.
+  - unfold same_emitter_class_iq.
+    apply single_pair_swap_same_emitter_class_iq.
+Qed.
+
+Theorem family_descriptor_from_iq_noninjective :
+  forall (threshold : nat) (i q : Byte),
+    i <> q ->
+    exists xs ys,
+      xs <> ys /\
+      family_descriptor_from_iq 1 threshold xs =
+        family_descriptor_from_iq 1 threshold ys.
+Proof.
+  intros threshold i q Hneq.
+  exists [i; q].
+  exists [q; i].
+  split.
+  - intro Heq.
+    inversion Heq.
+    contradiction.
+  - apply single_pair_swap_descriptor_invariant.
+Qed.
+
+Theorem semantic_tower_from_iq_noninjective :
+  forall (threshold : nat) (i q : Byte),
+    i <> q ->
+    exists xs ys,
+      xs <> ys /\
+      semantic_tower_from_iq 1 threshold xs =
+        semantic_tower_from_iq 1 threshold ys.
+Proof.
+  intros threshold i q Hneq.
+  exists [i; q].
+  exists [q; i].
+  split.
+  - intro Heq.
+    inversion Heq.
+    contradiction.
+  - apply single_pair_swap_semantic_tower_invariant.
 Qed.
 
 Inductive DeviceKind :=

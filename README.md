@@ -214,3 +214,46 @@ Under that regime:
 - the tracked families remain distinct
 - generic packet-structure views now lift through the same family and IQ invariance laws as the fixed packet views
 - `prefix12/suffix12` is the stronger live counter schema on the tested numeric carry boundaries
+
+## Live Validation Update
+
+This update accompanies the newer observer-limit theorems in
+`SubGhzFamilies.v` and `SubGhzObservation.v`: distinct timing-family members,
+distinct positive timing schedules, and distinct IQ byte streams can collapse
+to the same decoded packet, packet-structure view, and freshness judgment once
+they are observed through the published analysis layer.
+
+Fresh live bench checks using the same Flipper Zero / NESDR setup reproduced
+the main predicted collapses:
+
+- fresh `BADA50` captures at `te=210`, `420`, `840`, and `1260` preserved the
+  canonical object, decoded `bada50`, five-field structure view, and freshness
+  judgment while the inferred pulse base still changed across the sweep
+- fresh `C4FE80` captures at `te=230`, `460`, `920`, and `1380` reproduced the
+  same family-level invariance under the distinct `prefix/flag/check/payload`
+  ordering recorded in the structure catalog
+- two distinct positive timing schedules of equal length for both `BADA50` and
+  `C4FE80` produced the same decoded pair and the same freshness sequence
+  `[true,false]`, matching the schedule-collapse theorems
+- a bytewise-different pairwise-I/Q-swapped copy of a fresh `BADA50 te420`
+  capture preserved the canonical object, decoded packet, structure view,
+  freshness judgment, and inferred base, giving live support to the new
+  observation-layer transposition result
+- a fresh `BADA50 te420 rep10` capture matched the tracked corpus file exactly
+  under the canonical published regime
+
+The main edge-case caveat is also now sharper:
+
+- the tracked `BEEF90 te170` file still realizes the published regime metamer,
+  with distinct class digests under the `16 / 131072` and `19 / 124507`
+  regimes while preserving decoded `beef90`
+- fresh live `BEEF90 te170` captures on the current bench still changed class
+  digest across those two regimes, but the alternate regime truncated the frame
+  instead of preserving `beef90`, suggesting that this metamer lives near a
+  real decision boundary and is bench-sensitive rather than bulk-stable
+
+Taken together, the new proofs and fresh bench checks sharpen the scientific
+claim of the repository: this is not only a decoder that happens to be robust,
+but a formally and experimentally supported map of which physical distinctions
+the published observation layer preserves, which ones it erases, and which edge
+cases remain genuinely marginal.
