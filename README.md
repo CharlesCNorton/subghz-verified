@@ -91,8 +91,12 @@ structure / freshness interpretation for each tracked family.
 
 `replay/manifest.csv` records repeated and repeat-varied project-native captures
 used to tie schema-aware freshness and first-packet metamer results to real
-emissions, including regime metamers where different analysis regimes recover
-the same decoded packet under different class digests.
+emissions, including the regime-edge rows that recover stable cells, metamer
+slices, drift walls, and truncation walls on tracked edge captures.
+
+`boundaries/manifest.csv` records the audited regime paths for the refinement
+edge captures, including the adjacent boundary-kind masks and the fast-crop
+metadata used to reproduce the current edge atlas.
 
 `schemas/manifest.csv` records the project-native packet-schema probes used to
 distinguish simple counter interpretations, carry boundaries, and physically
@@ -203,6 +207,8 @@ Under that regime:
   regimes
 - the `C4FE80 te185` edge capture preserves the full packet across several
   finer regimes, while the canonical regime truncates toward the prefix
+- `boundaries/manifest.csv` records the current edge atlas for `ABCD10`,
+  `7EA5B0`, `C0FFEE`, `D15EA5`, `BEEF90`, `A5C3D0`, `BADA50`, and `C4FE80`
 - quiet-prefix and quiet-suffix alias captures preserve the decoded `BADA50`
   and `C4FE80` packets while changing the canonical class digest
 - deliberate gain, offset, and bounded perturbation checks preserve the canonical object and frame word for `CAFE42` and `1CEB00`
