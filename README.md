@@ -184,9 +184,10 @@ Under that regime:
   payload, and boundary behavior becomes visible
 - the `D15EA5 te175` edge capture recovers the family under the fine `15 / 98304` regime and drifts under coarser regimes
 - the `C0FFEE te175` edge capture also requires the fine `15 / 98304` regime; coarser regimes drift
-- the `ABCD10 te160` edge capture is a physically realized regime metamer:
-  distinct analysis regimes recover the same decoded packet under different
-  class digests
+- the `ABCD10 te160` edge capture is a refinement edge case: the fine
+  `15 / 98304` and `16 / 131072` regimes recover full `abcd10`, while the
+  coarser `18 / 147456` regime changes class digest and truncates to the
+  22-bit prefix `2af344`
 - the `7EA5B0 te180` edge capture is also a physically realized regime metamer
 - the `BEEF90 te170` edge capture is also a physically realized regime metamer
 - the `A5C3D0 te190` edge capture recovers the family only in finer regimes;
