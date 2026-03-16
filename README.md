@@ -5,6 +5,12 @@ Formalizing sub-GHz OOK pulse classification.
 This repository is a dual formalization / exploration engine for sub-GHz radio
 experiments predicted by Rocq and common sense, then tested on the bench.
 
+Why this exists: agentic Rocq plus direct hardware control collapses the gap
+between mathematical prediction and radio experiment. If the formal model
+predicts a metamer, drift wall, truncation wall, or other boundary phenomenon,
+the same system can immediately drive the bench, capture IQ, and test it
+against reality. The proof-to-experiment loop is the point of the repo.
+
 The formalization is split into four files:
 
 - `SubGhzCore.v`: symbolic pulse, token, bit, and packet semantics
