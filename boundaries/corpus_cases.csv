@@ -1,0 +1,9 @@
+case_id,family_id,key,descriptor,file,crop_window_pairs,crop_threshold,crop_pad_windows,regimes,notes
+abcd10,ABCD10,ABCD10,prefix16_check4_counter4,captures/te160-keyabcd10-rep10-433920000.iq,15,98304,400,15:98304;16:131072;18:147456,late class flip produces the first post-start FrameUnknown and truncates to the 22-bit prefix
+7ea5b0,7EA5B0,7EA5B0,prefix8_flag4_payload8_counter4,captures/te180-key7ea5b0-rep10-433920000.iq,19,131060,400,19:155648;20:131060,physically realized regime metamer on the 7EA5B0 edge capture
+c0ffee,C0FFEE,C0FFEE,static,captures/te175-keyc0ffee-rep10-433920000.iq,15,98304,400,15:98304;18:147456;19:124507;20:131072,stable cell followed by a metamer and then a truncation wall
+d15ea5,D15EA5,D15EA5,static,captures/te175-keyd15ea5-rep10-433920000.iq,15,98304,400,15:98304;18:147456;19:124507,stable recovery cell followed by a physically realized metamer
+beef90,BEEF90,BEEF90,prefix12_check4_payload4_counter4,captures/te170-keybeef90-rep10-433920000.iq,16,124507,400,16:131072;19:124507,physically realized regime metamer on the BEEF90 edge capture
+a5c3d0,A5C3D0,A5C3D0,prefix12_flag4_payload4_counter4,captures/te190-keya5c3d0-rep10-433920000.iq,15,98304,400,15:98304;20:131072,fine recovery cell followed by a canonical truncation wall
+bada50,BADA50,BADA50,prefix8_check4_flag4_payload4_counter4,captures/te165-keybada50-rep10-433920000.iq,15,98304,400,15:98304;20:131072;25:163840;30:196608,stable recovery cell then a drift wall and then a terminal truncation wall
+c4fe80,C4FE80,C4FE80,prefix8_flag4_check4_payload4_counter4,captures/te185-keyc4fe80-rep10-433920000.iq,15,98304,400,15:98304;20:131072,fine recovery cell followed by the canonical truncation wall

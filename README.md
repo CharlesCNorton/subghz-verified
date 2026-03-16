@@ -98,6 +98,15 @@ slices, drift walls, and truncation walls on tracked edge captures.
 edge captures, including the adjacent boundary-kind masks and the fast-crop
 metadata used to reproduce the current edge atlas.
 
+`boundaries/corpus_cases.csv` and `boundaries/live_cases.csv` are the
+reproducible case tables used by `boundaries/regenerate.py`.
+
+`boundaries/live_manifest.csv` records the live edge atlas produced from fresh
+bench captures when the matching live capture files are available.
+
+`boundaries/live_vs_corpus.csv` records the per-family comparison between the
+tracked corpus edge atlas and the fresh live edge atlas.
+
 `schemas/manifest.csv` records the project-native packet-schema probes used to
 distinguish simple counter interpretations, carry boundaries, and physically
 realized first-packet metamer families.
@@ -109,6 +118,10 @@ check, flag, payload, boundary, and metamer interpretations.
 `robustness/manifest.csv` records representative threshold-drift, IQ-energy,
 phase-walk, additive-noise, and class-preserving jitter checks against tracked
 captures.
+
+To regenerate the boundary manifests from inside the repo, run
+`python boundaries/regenerate.py`. Pass `--live-root <dir>` when the fresh live
+captures live outside the default bench path.
 
 ## Current Results
 
@@ -209,6 +222,13 @@ Under that regime:
   finer regimes, while the canonical regime truncates toward the prefix
 - `boundaries/manifest.csv` records the current edge atlas for `ABCD10`,
   `7EA5B0`, `C0FFEE`, `D15EA5`, `BEEF90`, `A5C3D0`, `BADA50`, and `C4FE80`
+- `boundaries/live_manifest.csv` records the current live edge atlas for the
+  fresh `ABCD10`, `7EA5B0`, `C0FFEE`, `D15EA5`, `BEEF90`, `A5C3D0`, `BADA50`,
+  and `C4FE80` bench captures
+- `boundaries/live_vs_corpus.csv` records where the fresh live edge atlas
+  exactly matches corpus (`D15EA5`), where the boundary taxonomy matches but
+  the truncated word drifts (`A5C3D0`, `C4FE80`), and where the live boundary
+  itself shifts (`ABCD10`, `7EA5B0`, `C0FFEE`, `BEEF90`, `BADA50`)
 - quiet-prefix and quiet-suffix alias captures preserve the decoded `BADA50`
   and `C4FE80` packets while changing the canonical class digest
 - deliberate gain, offset, and bounded perturbation checks preserve the canonical object and frame word for `CAFE42` and `1CEB00`
@@ -255,6 +275,9 @@ the main predicted collapses:
   observation-layer transposition result
 - a fresh `BADA50 te420 rep10` capture matched the tracked corpus file exactly
   under the canonical published regime
+- the repo now carries those live edge results directly in
+  `boundaries/live_manifest.csv` and `boundaries/live_vs_corpus.csv`, rather
+  than leaving them only in runtime logs
 
 The main edge-case caveat is also now sharper:
 
@@ -265,6 +288,11 @@ The main edge-case caveat is also now sharper:
   digest across those two regimes, but the alternate regime truncated the frame
   instead of preserving `beef90`, suggesting that this metamer lives near a
   real decision boundary and is bench-sensitive rather than bulk-stable
+- the wider live edge atlas sharpens that picture: `D15EA5 te175` reproduced
+  the corpus boundary stack exactly, `C0FFEE te175` stayed stable deeper into
+  the coarser regime ladder than corpus, and the fresh `ABCD10 te160` and
+  `7EA5B0 te180` edge captures landed in harsher live cells than the tracked
+  corpus files
 
 Taken together, the new proofs and fresh bench checks sharpen the scientific
 claim of the repository: this is not only a decoder that happens to be robust,

@@ -1,0 +1,11 @@
+case_id,family_id,descriptor,file,crop_window_pairs,crop_threshold,crop_pad_windows,regimes,notes
+live_abcd10,ABCD10,prefix16_check4_counter4,live-te160-keyabcd10-rep10-433920000.iq,15,98304,400,15:98304;16:131072;18:147456,fresh live edge capture
+live_7ea5b0,7EA5B0,prefix8_flag4_payload8_counter4,live-te180-key7ea5b0-rep10-433920000.iq,19,131060,400,19:155648;20:131060,fresh live edge capture
+live_c0ffee,C0FFEE,static,live-te175-keyc0ffee-rep10-433920000.iq,15,98304,400,15:98304;18:147456;19:124507;20:131072,fresh live edge capture
+live_d15ea5,D15EA5,static,live-te175-keyd15ea5-rep10-433920000.iq,15,98304,400,15:98304;18:147456;19:124507,fresh live edge capture
+live_beef90_run1,BEEF90,prefix12_check4_payload4_counter4,live-te170-keybeef90-rep10-433920000.iq,16,124507,400,16:131072;19:124507,first fresh live edge capture
+live_beef90_run2,BEEF90,prefix12_check4_payload4_counter4,live-te170-keybeef90-rep10-run2-433920000.iq,16,124507,400,16:131072;19:124507,second fresh live edge capture
+live_beef90_run3,BEEF90,prefix12_check4_payload4_counter4,live-te170-keybeef90-rep10-run3-433920000.iq,16,124507,400,16:131072;19:124507,third fresh live edge capture
+live_a5c3d0,A5C3D0,prefix12_flag4_payload4_counter4,live-te190-keya5c3d0-rep10-433920000.iq,15,98304,400,15:98304;20:131072,fresh live edge capture
+live_bada50,BADA50,prefix8_check4_flag4_payload4_counter4,live-te165-keybada50-rep10-433920000.iq,15,98304,400,15:98304;20:131072;25:163840;30:196608,fresh live edge capture
+live_c4fe80,C4FE80,prefix8_flag4_check4_payload4_counter4,live-te185-keyc4fe80-rep10-433920000.iq,15,98304,400,15:98304;20:131072,fresh live edge capture
