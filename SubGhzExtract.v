@@ -153,7 +153,26 @@ Extraction "burst_detector_extracted.ml"
   canonical_packet_schema_fresh_from_iq
   canonical_packet_schema_descriptor_structure_from_iq
   canonical_packet_schema_descriptor_fresh_from_iq
+  packet_schema_descriptor_observation_from_iq
   canonical_packet_schema_descriptor_fresh_sequence_from_iq
+  frame_bit_count_from_iq
+  family_descriptor_from_iq
+  semantic_tower_from_iq
+  packet_schema_descriptor_phase_signature_from_iq
+  observation_regime_eqb
+  packet_schema_descriptor_phase_signature_eqb
+  class_transition_between_iq_regimesb
+  packet_schema_descriptor_phase_transition_between_iq_regimesb
+  class_transition_between_observation_regimesb
+  packet_schema_descriptor_phase_transition_between_observation_regimesb
+  regime_path_class_stableb
+  regime_path_phase_stableb
+  regime_path_has_class_transitionb
+  regime_path_has_phase_transitionb
+  phase_signature_sequence_from_iq_regimes
+  observation_regime_class_transition_mask
+  observation_regime_phase_transition_mask
+  regime_phase_atlas_from_iq
   frame_bits_sequence_from_iq
   packet_structure_profile_from_iq_sequence
   counter_schema_fits_iqb

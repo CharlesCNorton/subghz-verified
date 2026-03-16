@@ -2553,6 +2553,12 @@ Proof.
   reflexivity.
 Qed.
 
+Definition frame_bit_count_from_iq
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    : nat :=
+  length (canonical_frame_bits_from_iq window_pairs threshold xs).
+
 Definition family_descriptor_from_iq
     (window_pairs threshold : nat)
     (xs : ByteStream)
@@ -2569,6 +2575,163 @@ Definition semantic_tower_from_iq
      tower_word := canonical_frame_word_from_iq window_pairs threshold xs;
      tower_packet24 := canonical_packet24_from_iq window_pairs threshold xs;
      tower_fields := canonical_packet24_field_view_from_iq window_pairs threshold xs |}.
+
+Record PacketSchemaDescriptorPhaseSignature := {
+  phase_signature_object : CanonicalRFObject;
+  phase_signature_frame_bit_count : nat;
+  phase_signature_decoded_view : DecodedPacketView;
+  phase_signature_schema_observation : PacketSchemaDescriptorObservation
+}.
+
+Definition packet_schema_descriptor_phase_signature_from_iq
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (window_pairs threshold : nat)
+    (xs : ByteStream)
+    : PacketSchemaDescriptorPhaseSignature :=
+  {| phase_signature_object :=
+       canonical_pulse_classes_from_iq window_pairs threshold xs;
+     phase_signature_frame_bit_count :=
+       frame_bit_count_from_iq window_pairs threshold xs;
+     phase_signature_decoded_view :=
+       decoded_packet_view_from_iq window_pairs threshold xs;
+     phase_signature_schema_observation :=
+       packet_schema_descriptor_observation_from_iq
+         descriptor state window_pairs threshold xs |}.
+
+Definition packet24_eqb
+    (x y : Packet24)
+    : bool :=
+  Nat.eqb (packet24_hi x) (packet24_hi y)
+  &&
+  Nat.eqb (packet24_mid x) (packet24_mid y)
+  &&
+  Nat.eqb (packet24_lo x) (packet24_lo y).
+
+Definition packet24_byte_view_eqb
+    (x y : Packet24ByteView)
+    : bool :=
+  Nat.eqb (packet24_byte0 x) (packet24_byte0 y)
+  &&
+  Nat.eqb (packet24_byte1 x) (packet24_byte1 y)
+  &&
+  Nat.eqb (packet24_byte2 x) (packet24_byte2 y).
+
+Definition packet24_nibble_view_eqb
+    (x y : Packet24NibbleView)
+    : bool :=
+  Nat.eqb (packet24_nibble0 x) (packet24_nibble0 y)
+  &&
+  Nat.eqb (packet24_nibble1 x) (packet24_nibble1 y)
+  &&
+  Nat.eqb (packet24_nibble2 x) (packet24_nibble2 y)
+  &&
+  Nat.eqb (packet24_nibble3 x) (packet24_nibble3 y)
+  &&
+  Nat.eqb (packet24_nibble4 x) (packet24_nibble4 y)
+  &&
+  Nat.eqb (packet24_nibble5 x) (packet24_nibble5 y).
+
+Definition packet24_field_view_eqb
+    (x y : Packet24FieldView)
+    : bool :=
+  packet24_byte_view_eqb
+    (packet24_fields_bytes x)
+    (packet24_fields_bytes y)
+  &&
+  packet24_nibble_view_eqb
+    (packet24_fields_nibbles x)
+    (packet24_fields_nibbles y)
+  &&
+  Nat.eqb (packet24_fields_prefix12 x) (packet24_fields_prefix12 y)
+  &&
+  Nat.eqb (packet24_fields_suffix12 x) (packet24_fields_suffix12 y).
+
+Definition packet_structured_field_value_eqb
+    (x y : PacketStructuredFieldValue)
+    : bool :=
+  Nat.eqb
+    (packet_field_role_code (structured_field_role x))
+    (packet_field_role_code (structured_field_role y))
+  &&
+  Nat.eqb (structured_field_offset x) (structured_field_offset y)
+  &&
+  Nat.eqb (structured_field_width x) (structured_field_width y)
+  &&
+  Nat.eqb (structured_field_value x) (structured_field_value y).
+
+Fixpoint packet_structured_field_value_list_eqb
+    (xs ys : list PacketStructuredFieldValue)
+    : bool :=
+  match xs, ys with
+  | [], [] => true
+  | x :: xs', y :: ys' =>
+      packet_structured_field_value_eqb x y
+      &&
+      packet_structured_field_value_list_eqb xs' ys'
+  | _, _ => false
+  end.
+
+Definition packet_schema_descriptor_observation_eqb
+    (x y : PacketSchemaDescriptorObservation)
+    : bool :=
+  packet_structured_field_value_list_eqb
+    (descriptor_observation_structure x)
+    (descriptor_observation_structure y)
+  &&
+  Bool.eqb
+    (descriptor_observation_fresh x)
+    (descriptor_observation_fresh y).
+
+Definition decoded_packet_view_eqb
+    (x y : DecodedPacketView)
+    : bool :=
+  bool_list_eqb (view_bits x) (view_bits y)
+  &&
+  Nat.eqb (view_word x) (view_word y)
+  &&
+  packet24_eqb (view_packet24 x) (view_packet24 y)
+  &&
+  packet24_field_view_eqb (view_fields x) (view_fields y).
+
+Definition family_descriptor_eqb
+    (x y : FamilyDescriptor)
+    : bool :=
+  pulse_class_list_eqb (family_object x) (family_object y)
+  &&
+  bool_list_eqb (family_frame_bits x) (family_frame_bits y).
+
+Definition semantic_tower_eqb
+    (x y : FamilySemanticTower)
+    : bool :=
+  pulse_class_list_eqb (tower_object x) (tower_object y)
+  &&
+  bool_list_eqb (tower_bits x) (tower_bits y)
+  &&
+  Nat.eqb (tower_word x) (tower_word y)
+  &&
+  packet24_eqb (tower_packet24 x) (tower_packet24 y)
+  &&
+  packet24_field_view_eqb (tower_fields x) (tower_fields y).
+
+Definition packet_schema_descriptor_phase_signature_eqb
+    (x y : PacketSchemaDescriptorPhaseSignature)
+    : bool :=
+  pulse_class_list_eqb
+    (phase_signature_object x)
+    (phase_signature_object y)
+  &&
+  Nat.eqb
+    (phase_signature_frame_bit_count x)
+    (phase_signature_frame_bit_count y)
+  &&
+  decoded_packet_view_eqb
+    (phase_signature_decoded_view x)
+    (phase_signature_decoded_view y)
+  &&
+  packet_schema_descriptor_observation_eqb
+    (phase_signature_schema_observation x)
+    (phase_signature_schema_observation y).
 
 Definition observed_iq_matches_family
     (base_pattern : Runs)
@@ -2777,6 +2940,19 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem frame_bits_invariant_between_iq_regimes_implies_frame_bit_count_invariant :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    canonical_frame_bits_from_iq window_pairs1 threshold1 xs =
+      canonical_frame_bits_from_iq window_pairs2 threshold2 xs ->
+    frame_bit_count_from_iq window_pairs1 threshold1 xs =
+      frame_bit_count_from_iq window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hbits.
+  unfold frame_bit_count_from_iq.
+  rewrite Hbits.
+  reflexivity.
+Qed.
+
 Theorem frame_bits_invariant_between_iq_regimes_implies_frame_word_invariant :
   forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
     canonical_frame_bits_from_iq window_pairs1 threshold1 xs =
@@ -2932,6 +3108,19 @@ Proof.
   - exact Hclasses.
 Qed.
 
+Theorem class_invariant_between_iq_regimes_implies_frame_bit_count_invariant :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    canonical_pulse_classes_from_iq window_pairs1 threshold1 xs =
+      canonical_pulse_classes_from_iq window_pairs2 threshold2 xs ->
+    frame_bit_count_from_iq window_pairs1 threshold1 xs =
+      frame_bit_count_from_iq window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses.
+  apply frame_bits_invariant_between_iq_regimes_implies_frame_bit_count_invariant.
+  apply class_invariant_between_iq_regimes_implies_frame_bits_invariant.
+  exact Hclasses.
+Qed.
+
 Theorem class_invariant_between_iq_regimes_implies_packet24_invariant :
   forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
     canonical_pulse_classes_from_iq window_pairs1 threshold1 xs =
@@ -3072,6 +3261,1303 @@ Proof.
   intros descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xss Hbits.
   apply frame_bits_sequence_invariant_between_iq_regimes_implies_packet_schema_descriptor_fresh_sequence_invariant.
   exact Hbits.
+Qed.
+
+Theorem class_invariant_between_iq_regimes_implies_packet_schema_descriptor_phase_signature_invariant :
+  forall descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    canonical_pulse_classes_from_iq window_pairs1 threshold1 xs =
+      canonical_pulse_classes_from_iq window_pairs2 threshold2 xs ->
+    packet_schema_descriptor_phase_signature_from_iq
+      descriptor state window_pairs1 threshold1 xs =
+      packet_schema_descriptor_phase_signature_from_iq
+        descriptor state window_pairs2 threshold2 xs.
+Proof.
+  intros descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses.
+  unfold packet_schema_descriptor_phase_signature_from_iq.
+  rewrite Hclasses.
+  rewrite
+    (class_invariant_between_iq_regimes_implies_frame_bit_count_invariant
+       window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
+  rewrite
+    (class_invariant_between_iq_regimes_implies_decoded_view_invariant
+       window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
+  rewrite
+    (class_invariant_between_iq_regimes_implies_packet_schema_descriptor_observation_invariant
+       descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs Hclasses).
+  reflexivity.
+Qed.
+
+Definition class_transition_between_iq_regimes
+    (window_pairs1 threshold1 window_pairs2 threshold2 : nat)
+    (xs : ByteStream)
+    : Prop :=
+  canonical_pulse_classes_from_iq window_pairs1 threshold1 xs <>
+    canonical_pulse_classes_from_iq window_pairs2 threshold2 xs.
+
+Definition frame_bit_count_transition_between_iq_regimes
+    (window_pairs1 threshold1 window_pairs2 threshold2 : nat)
+    (xs : ByteStream)
+    : Prop :=
+  frame_bit_count_from_iq window_pairs1 threshold1 xs <>
+    frame_bit_count_from_iq window_pairs2 threshold2 xs.
+
+Definition frame_word_transition_between_iq_regimes
+    (window_pairs1 threshold1 window_pairs2 threshold2 : nat)
+    (xs : ByteStream)
+    : Prop :=
+  canonical_frame_word_from_iq window_pairs1 threshold1 xs <>
+    canonical_frame_word_from_iq window_pairs2 threshold2 xs.
+
+Definition decoded_view_transition_between_iq_regimes
+    (window_pairs1 threshold1 window_pairs2 threshold2 : nat)
+    (xs : ByteStream)
+    : Prop :=
+  decoded_packet_view_from_iq window_pairs1 threshold1 xs <>
+    decoded_packet_view_from_iq window_pairs2 threshold2 xs.
+
+Definition family_descriptor_transition_between_iq_regimes
+    (window_pairs1 threshold1 window_pairs2 threshold2 : nat)
+    (xs : ByteStream)
+    : Prop :=
+  family_descriptor_from_iq window_pairs1 threshold1 xs <>
+    family_descriptor_from_iq window_pairs2 threshold2 xs.
+
+Definition semantic_tower_transition_between_iq_regimes
+    (window_pairs1 threshold1 window_pairs2 threshold2 : nat)
+    (xs : ByteStream)
+    : Prop :=
+  semantic_tower_from_iq window_pairs1 threshold1 xs <>
+    semantic_tower_from_iq window_pairs2 threshold2 xs.
+
+Definition packet_schema_descriptor_observation_transition_between_iq_regimes
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (window_pairs1 threshold1 window_pairs2 threshold2 : nat)
+    (xs : ByteStream)
+    : Prop :=
+  packet_schema_descriptor_observation_from_iq
+    descriptor state window_pairs1 threshold1 xs <>
+  packet_schema_descriptor_observation_from_iq
+    descriptor state window_pairs2 threshold2 xs.
+
+Definition packet_schema_descriptor_phase_transition_between_iq_regimes
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (window_pairs1 threshold1 window_pairs2 threshold2 : nat)
+    (xs : ByteStream)
+    : Prop :=
+  packet_schema_descriptor_phase_signature_from_iq
+    descriptor state window_pairs1 threshold1 xs <>
+  packet_schema_descriptor_phase_signature_from_iq
+    descriptor state window_pairs2 threshold2 xs.
+
+Record ObservationRegime := {
+  regime_window_pairs : nat;
+  regime_threshold : nat
+}.
+
+Definition observation_regime_eqb
+    (x y : ObservationRegime)
+    : bool :=
+  Nat.eqb (regime_window_pairs x) (regime_window_pairs y)
+  &&
+  Nat.eqb (regime_threshold x) (regime_threshold y).
+
+Definition class_signature_from_iq_regime
+    (regime : ObservationRegime)
+    (xs : ByteStream)
+    : CanonicalRFObject :=
+  canonical_pulse_classes_from_iq
+    (regime_window_pairs regime)
+    (regime_threshold regime)
+    xs.
+
+Definition frame_bit_count_from_iq_regime
+    (regime : ObservationRegime)
+    (xs : ByteStream)
+    : nat :=
+  frame_bit_count_from_iq
+    (regime_window_pairs regime)
+    (regime_threshold regime)
+    xs.
+
+Definition decoded_view_from_iq_regime
+    (regime : ObservationRegime)
+    (xs : ByteStream)
+    : DecodedPacketView :=
+  decoded_packet_view_from_iq
+    (regime_window_pairs regime)
+    (regime_threshold regime)
+    xs.
+
+Definition packet_schema_descriptor_phase_signature_from_iq_regime
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (regime : ObservationRegime)
+    (xs : ByteStream)
+    : PacketSchemaDescriptorPhaseSignature :=
+  packet_schema_descriptor_phase_signature_from_iq
+    descriptor state
+    (regime_window_pairs regime)
+    (regime_threshold regime)
+    xs.
+
+Definition class_transition_between_observation_regimes
+    (regime1 regime2 : ObservationRegime)
+    (xs : ByteStream)
+    : Prop :=
+  class_signature_from_iq_regime regime1 xs <>
+    class_signature_from_iq_regime regime2 xs.
+
+Definition packet_schema_descriptor_phase_transition_between_observation_regimes
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (regime1 regime2 : ObservationRegime)
+    (xs : ByteStream)
+    : Prop :=
+  packet_schema_descriptor_phase_signature_from_iq_regime
+    descriptor state regime1 xs <>
+  packet_schema_descriptor_phase_signature_from_iq_regime
+    descriptor state regime2 xs.
+
+Fixpoint last_observation_regime_or
+    (default : ObservationRegime)
+    (rs : list ObservationRegime)
+    : ObservationRegime :=
+  match rs with
+  | [] => default
+  | r :: rs' => last_observation_regime_or r rs'
+  end.
+
+Fixpoint regime_path_class_stable
+    (xs : ByteStream)
+    (rs : list ObservationRegime)
+    : Prop :=
+  match rs with
+  | [] => True
+  | r1 :: rs' =>
+      match rs' with
+      | [] => True
+      | r2 :: _ =>
+          class_signature_from_iq_regime r1 xs =
+            class_signature_from_iq_regime r2 xs /\
+          regime_path_class_stable xs rs'
+      end
+  end.
+
+Fixpoint regime_path_phase_stable
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (xs : ByteStream)
+    (rs : list ObservationRegime)
+    : Prop :=
+  match rs with
+  | [] => True
+  | r1 :: rs' =>
+      match rs' with
+      | [] => True
+      | r2 :: _ =>
+          packet_schema_descriptor_phase_signature_from_iq_regime
+            descriptor state r1 xs =
+            packet_schema_descriptor_phase_signature_from_iq_regime
+              descriptor state r2 xs /\
+          regime_path_phase_stable descriptor state xs rs'
+      end
+  end.
+
+Definition class_transition_between_iq_regimesb
+    (window_pairs1 threshold1 window_pairs2 threshold2 : nat)
+    (xs : ByteStream)
+    : bool :=
+  negb
+    (pulse_class_list_eqb
+       (canonical_pulse_classes_from_iq window_pairs1 threshold1 xs)
+       (canonical_pulse_classes_from_iq window_pairs2 threshold2 xs)).
+
+Definition packet_schema_descriptor_phase_transition_between_iq_regimesb
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (window_pairs1 threshold1 window_pairs2 threshold2 : nat)
+    (xs : ByteStream)
+    : bool :=
+  negb
+    (packet_schema_descriptor_phase_signature_eqb
+       (packet_schema_descriptor_phase_signature_from_iq
+          descriptor state window_pairs1 threshold1 xs)
+       (packet_schema_descriptor_phase_signature_from_iq
+          descriptor state window_pairs2 threshold2 xs)).
+
+Definition class_transition_between_observation_regimesb
+    (regime1 regime2 : ObservationRegime)
+    (xs : ByteStream)
+    : bool :=
+  negb
+    (pulse_class_list_eqb
+       (class_signature_from_iq_regime regime1 xs)
+       (class_signature_from_iq_regime regime2 xs)).
+
+Definition packet_schema_descriptor_phase_transition_between_observation_regimesb
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (regime1 regime2 : ObservationRegime)
+    (xs : ByteStream)
+    : bool :=
+  negb
+    (packet_schema_descriptor_phase_signature_eqb
+       (packet_schema_descriptor_phase_signature_from_iq_regime
+          descriptor state regime1 xs)
+       (packet_schema_descriptor_phase_signature_from_iq_regime
+          descriptor state regime2 xs)).
+
+Fixpoint regime_path_class_stableb
+    (xs : ByteStream)
+    (rs : list ObservationRegime)
+    : bool :=
+  match rs with
+  | [] => true
+  | r1 :: rs' =>
+      match rs' with
+      | [] => true
+      | r2 :: _ =>
+          pulse_class_list_eqb
+            (class_signature_from_iq_regime r1 xs)
+            (class_signature_from_iq_regime r2 xs)
+          &&
+          regime_path_class_stableb xs rs'
+      end
+  end.
+
+Fixpoint regime_path_phase_stableb
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (xs : ByteStream)
+    (rs : list ObservationRegime)
+    : bool :=
+  match rs with
+  | [] => true
+  | r1 :: rs' =>
+      match rs' with
+      | [] => true
+      | r2 :: _ =>
+          packet_schema_descriptor_phase_signature_eqb
+            (packet_schema_descriptor_phase_signature_from_iq_regime
+               descriptor state r1 xs)
+            (packet_schema_descriptor_phase_signature_from_iq_regime
+               descriptor state r2 xs)
+          &&
+          regime_path_phase_stableb descriptor state xs rs'
+      end
+  end.
+
+Fixpoint regime_path_has_class_transitionb
+    (xs : ByteStream)
+    (rs : list ObservationRegime)
+    : bool :=
+  match rs with
+  | [] => false
+  | r1 :: rs' =>
+      match rs' with
+      | [] => false
+      | r2 :: _ =>
+          class_transition_between_observation_regimesb r1 r2 xs
+          ||
+          regime_path_has_class_transitionb xs rs'
+      end
+  end.
+
+Fixpoint regime_path_has_phase_transitionb
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (xs : ByteStream)
+    (rs : list ObservationRegime)
+    : bool :=
+  match rs with
+  | [] => false
+  | r1 :: rs' =>
+      match rs' with
+      | [] => false
+      | r2 :: _ =>
+          packet_schema_descriptor_phase_transition_between_observation_regimesb
+            descriptor state r1 r2 xs
+          ||
+          regime_path_has_phase_transitionb descriptor state xs rs'
+      end
+  end.
+
+Definition phase_signature_sequence_from_iq_regimes
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (rs : list ObservationRegime)
+    (xs : ByteStream)
+    : list PacketSchemaDescriptorPhaseSignature :=
+  map
+    (fun regime =>
+       packet_schema_descriptor_phase_signature_from_iq_regime
+         descriptor state regime xs)
+    rs.
+
+Fixpoint observation_regime_class_transition_mask
+    (xs : ByteStream)
+    (rs : list ObservationRegime)
+    : list bool :=
+  match rs with
+  | [] => []
+  | r1 :: rs' =>
+      match rs' with
+      | [] => []
+      | r2 :: _ =>
+          class_transition_between_observation_regimesb r1 r2 xs
+          :: observation_regime_class_transition_mask xs rs'
+      end
+  end.
+
+Fixpoint observation_regime_phase_transition_mask
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (xs : ByteStream)
+    (rs : list ObservationRegime)
+    : list bool :=
+  match rs with
+  | [] => []
+  | r1 :: rs' =>
+      match rs' with
+      | [] => []
+      | r2 :: _ =>
+          packet_schema_descriptor_phase_transition_between_observation_regimesb
+            descriptor state r1 r2 xs
+          :: observation_regime_phase_transition_mask descriptor state xs rs'
+      end
+  end.
+
+Record RegimePhaseAtlas := {
+  atlas_regimes : list ObservationRegime;
+  atlas_phase_signatures : list PacketSchemaDescriptorPhaseSignature;
+  atlas_class_transition_mask : list bool;
+  atlas_phase_transition_mask : list bool;
+  atlas_class_stable : bool;
+  atlas_phase_stable : bool
+}.
+
+Definition regime_phase_atlas_from_iq
+    (descriptor : PacketSchemaDescriptor)
+    (state : PacketSchemaState)
+    (rs : list ObservationRegime)
+    (xs : ByteStream)
+    : RegimePhaseAtlas :=
+  {| atlas_regimes := rs;
+     atlas_phase_signatures :=
+       phase_signature_sequence_from_iq_regimes descriptor state rs xs;
+     atlas_class_transition_mask :=
+       observation_regime_class_transition_mask xs rs;
+     atlas_phase_transition_mask :=
+       observation_regime_phase_transition_mask descriptor state xs rs;
+     atlas_class_stable := regime_path_class_stableb xs rs;
+     atlas_phase_stable := regime_path_phase_stableb descriptor state xs rs |}.
+
+Lemma pulse_class_eqb_true_iff :
+  forall x y,
+    pulse_class_eqb x y = true <-> x = y.
+Proof.
+  intros x y.
+  destruct x, y; simpl; split; intro H; try discriminate; reflexivity.
+Qed.
+
+Lemma pulse_class_list_eqb_true_iff :
+  forall xs ys,
+    pulse_class_list_eqb xs ys = true <-> xs = ys.
+Proof.
+  induction xs as [|x xs IH]; intros ys.
+  - destruct ys as [|y ys]; simpl; split; intro H; try discriminate; reflexivity.
+  - destruct ys as [|y ys]; simpl.
+    + split.
+      * intro H.
+        discriminate.
+      * intro H.
+        inversion H.
+    + split.
+      * intro H.
+        apply Bool.andb_true_iff in H as [Hxy Hrest].
+        apply pulse_class_eqb_true_iff in Hxy.
+        apply IH in Hrest.
+        subst.
+        reflexivity.
+      * intro H.
+        inversion H; subst.
+        apply Bool.andb_true_iff.
+        split.
+        -- apply pulse_class_eqb_true_iff.
+           reflexivity.
+        -- apply IH.
+           reflexivity.
+Qed.
+
+Lemma bool_list_eqb_true_iff :
+  forall xs ys,
+    bool_list_eqb xs ys = true <-> xs = ys.
+Proof.
+  induction xs as [|x xs IH]; intros ys.
+  - destruct ys as [|y ys]; simpl; split; intro H; try discriminate; reflexivity.
+  - destruct ys as [|y ys]; simpl.
+    + split.
+      * intro H.
+        discriminate.
+      * intro H.
+        inversion H.
+    + split.
+      * intro H.
+        apply Bool.andb_true_iff in H as [Hxy Hrest].
+        destruct x, y; simpl in Hxy; try discriminate;
+          apply IH in Hrest; subst; reflexivity.
+      * intro H.
+        inversion H; subst.
+        apply Bool.andb_true_iff.
+        split.
+        -- destruct y; reflexivity.
+        -- apply IH.
+           reflexivity.
+Qed.
+
+Lemma packet24_eqb_true_iff :
+  forall x y,
+    packet24_eqb x y = true <-> x = y.
+Proof.
+  intros [xh xm xl] [yh ym yl]; simpl.
+  split.
+  - intro H.
+    apply Bool.andb_true_iff in H as [Hxy Hz].
+    apply Bool.andb_true_iff in Hxy as [Hh Hm].
+    apply Nat.eqb_eq in Hh.
+    apply Nat.eqb_eq in Hm.
+    apply Nat.eqb_eq in Hz.
+    cbn in Hh, Hm, Hz.
+    subst.
+    reflexivity.
+  - intro H.
+    inversion H; subst.
+    cbn.
+    apply Bool.andb_true_iff.
+    split.
+    + apply Bool.andb_true_iff.
+      split.
+      * apply Nat.eqb_eq.
+        reflexivity.
+      * apply Nat.eqb_eq.
+        reflexivity.
+    + apply Nat.eqb_eq.
+      reflexivity.
+Qed.
+
+Lemma packet24_byte_view_eqb_true_iff :
+  forall x y,
+    packet24_byte_view_eqb x y = true <-> x = y.
+Proof.
+  intros [x0 x1 x2] [y0 y1 y2]; simpl.
+  split.
+  - intro H.
+    apply Bool.andb_true_iff in H as [Hxy Hz].
+    apply Bool.andb_true_iff in Hxy as [H0 H1].
+    apply Nat.eqb_eq in H0.
+    apply Nat.eqb_eq in H1.
+    apply Nat.eqb_eq in Hz.
+    cbn in H0, H1, Hz.
+    subst.
+    reflexivity.
+  - intro H.
+    inversion H; subst.
+    cbn.
+    apply Bool.andb_true_iff.
+    split.
+    + apply Bool.andb_true_iff.
+      split.
+      * apply Nat.eqb_eq.
+        reflexivity.
+      * apply Nat.eqb_eq.
+        reflexivity.
+    + apply Nat.eqb_eq.
+      reflexivity.
+Qed.
+
+Lemma packet24_nibble_view_eqb_true_iff :
+  forall x y,
+    packet24_nibble_view_eqb x y = true <-> x = y.
+Proof.
+  intros [x0 x1 x2 x3 x4 x5] [y0 y1 y2 y3 y4 y5]; simpl.
+  split.
+  - intro H.
+    apply Bool.andb_true_iff in H as [H01234 H5].
+    apply Bool.andb_true_iff in H01234 as [H0123 H4].
+    apply Bool.andb_true_iff in H0123 as [H012 H3].
+    apply Bool.andb_true_iff in H012 as [H01 H2].
+    apply Bool.andb_true_iff in H01 as [H0 H1].
+    apply Nat.eqb_eq in H0.
+    apply Nat.eqb_eq in H1.
+    apply Nat.eqb_eq in H2.
+    apply Nat.eqb_eq in H3.
+    apply Nat.eqb_eq in H4.
+    apply Nat.eqb_eq in H5.
+    cbn in H0, H1, H2, H3, H4, H5.
+    subst.
+    reflexivity.
+  - intro H.
+    inversion H; subst.
+    unfold packet24_nibble_view_eqb.
+    cbn.
+    repeat rewrite Nat.eqb_refl.
+    reflexivity.
+Qed.
+
+Lemma packet24_field_view_eqb_true_iff :
+  forall x y,
+    packet24_field_view_eqb x y = true <-> x = y.
+Proof.
+  intros [xb xn xp xs] [yb yn yp ys]; simpl.
+  split.
+  - intro H.
+    apply Bool.andb_true_iff in H as [Hbytes_nibbles_prefix Hsuffix].
+    apply Bool.andb_true_iff in Hbytes_nibbles_prefix as [Hbytes_nibbles Hprefix].
+    apply Bool.andb_true_iff in Hbytes_nibbles as [Hbytes Hnibbles].
+    apply packet24_byte_view_eqb_true_iff in Hbytes.
+    apply packet24_nibble_view_eqb_true_iff in Hnibbles.
+    apply Nat.eqb_eq in Hprefix.
+    apply Nat.eqb_eq in Hsuffix.
+    cbn in Hbytes, Hnibbles, Hprefix, Hsuffix.
+    subst.
+    reflexivity.
+  - intro H.
+    inversion H; subst.
+    unfold packet24_field_view_eqb.
+    cbn.
+    rewrite (proj2 (packet24_byte_view_eqb_true_iff yb yb) eq_refl).
+    rewrite (proj2 (packet24_nibble_view_eqb_true_iff yn yn) eq_refl).
+    repeat rewrite Nat.eqb_refl.
+    reflexivity.
+Qed.
+
+Lemma packet_structured_field_value_eqb_true_iff :
+  forall x y,
+    packet_structured_field_value_eqb x y = true <-> x = y.
+Proof.
+  intros [xr xo xw xv] [yr yo yw yv]; simpl.
+  split.
+  - intro H.
+    apply Bool.andb_true_iff in H as [Hrole_offset_width Hvalue].
+    apply Bool.andb_true_iff in Hrole_offset_width as [Hrole_offset Hwidth].
+    apply Bool.andb_true_iff in Hrole_offset as [Hrole Hoffset].
+    apply Nat.eqb_eq in Hrole.
+    apply Nat.eqb_eq in Hoffset.
+    apply Nat.eqb_eq in Hwidth.
+    apply Nat.eqb_eq in Hvalue.
+    cbn in Hrole, Hoffset, Hwidth, Hvalue.
+    destruct xr, yr; simpl in Hrole; try discriminate; subst; subst; reflexivity.
+  - intro H.
+    inversion H; subst.
+    unfold packet_structured_field_value_eqb.
+    cbn.
+    repeat rewrite Nat.eqb_refl.
+    reflexivity.
+Qed.
+
+Lemma packet_structured_field_value_list_eqb_true_iff :
+  forall xs ys,
+    packet_structured_field_value_list_eqb xs ys = true <-> xs = ys.
+Proof.
+  induction xs as [|x xs IH]; intros ys.
+  - destruct ys as [|y ys]; simpl; split; intro H; try discriminate; reflexivity.
+  - destruct ys as [|y ys]; simpl.
+    + split.
+      * intro H.
+        discriminate.
+      * intro H.
+        inversion H.
+    + split.
+      * intro H.
+        apply Bool.andb_true_iff in H as [Hxy Hrest].
+        apply packet_structured_field_value_eqb_true_iff in Hxy.
+        apply IH in Hrest.
+        subst.
+        reflexivity.
+      * intro H.
+        inversion H; subst.
+        apply Bool.andb_true_iff.
+        split.
+        -- apply packet_structured_field_value_eqb_true_iff.
+           reflexivity.
+        -- apply IH.
+           reflexivity.
+Qed.
+
+Lemma packet_schema_descriptor_observation_eqb_true_iff :
+  forall x y,
+    packet_schema_descriptor_observation_eqb x y = true <-> x = y.
+Proof.
+  intros [xs xf] [ys yf]; simpl.
+  split.
+  - intro H.
+    apply Bool.andb_true_iff in H as [Hstructure Hfresh].
+    apply packet_structured_field_value_list_eqb_true_iff in Hstructure.
+    destruct xf, yf; simpl in Hfresh; try discriminate;
+      cbn in Hstructure; subst; reflexivity.
+  - intro H.
+    inversion H; subst.
+    cbn.
+    apply Bool.andb_true_iff.
+    split.
+    + apply packet_structured_field_value_list_eqb_true_iff.
+      reflexivity.
+    + destruct yf; reflexivity.
+Qed.
+
+Lemma decoded_packet_view_eqb_true_iff :
+  forall x y,
+    decoded_packet_view_eqb x y = true <-> x = y.
+Proof.
+  intros [xb xw xp xf] [yb yw yp yf]; simpl.
+  split.
+  - intro H.
+    apply Bool.andb_true_iff in H as [Hbits_word_packet Hfields].
+    apply Bool.andb_true_iff in Hbits_word_packet as [Hbits_word Hpacket].
+    apply Bool.andb_true_iff in Hbits_word as [Hbits Hword].
+    apply bool_list_eqb_true_iff in Hbits.
+    apply Nat.eqb_eq in Hword.
+    apply packet24_eqb_true_iff in Hpacket.
+    apply packet24_field_view_eqb_true_iff in Hfields.
+    cbn in Hbits, Hword, Hpacket, Hfields.
+    subst.
+    reflexivity.
+  - intro H.
+    inversion H; subst.
+    unfold decoded_packet_view_eqb.
+    cbn.
+    rewrite (proj2 (bool_list_eqb_true_iff yb yb) eq_refl).
+    rewrite Nat.eqb_refl.
+    rewrite (proj2 (packet24_eqb_true_iff yp yp) eq_refl).
+    rewrite (proj2 (packet24_field_view_eqb_true_iff yf yf) eq_refl).
+    reflexivity.
+Qed.
+
+Lemma packet_schema_descriptor_phase_signature_eqb_true_iff :
+  forall x y,
+    packet_schema_descriptor_phase_signature_eqb x y = true <-> x = y.
+Proof.
+  intros [xo xc xv xs] [yo yc yv ys]; simpl.
+  split.
+  - intro H.
+    apply Bool.andb_true_iff in H as [Hobj_count_view Hschema].
+    apply Bool.andb_true_iff in Hobj_count_view as [Hobj_count Hview].
+    apply Bool.andb_true_iff in Hobj_count as [Hobj Hcount].
+    apply pulse_class_list_eqb_true_iff in Hobj.
+    apply Nat.eqb_eq in Hcount.
+    apply decoded_packet_view_eqb_true_iff in Hview.
+    apply packet_schema_descriptor_observation_eqb_true_iff in Hschema.
+    cbn in Hobj, Hcount, Hview, Hschema.
+    subst.
+    reflexivity.
+  - intro H.
+    inversion H; subst.
+    unfold packet_schema_descriptor_phase_signature_eqb.
+    cbn.
+    rewrite (proj2 (pulse_class_list_eqb_true_iff yo yo) eq_refl).
+    rewrite Nat.eqb_refl.
+    rewrite (proj2 (decoded_packet_view_eqb_true_iff yv yv) eq_refl).
+    rewrite (proj2 (packet_schema_descriptor_observation_eqb_true_iff ys ys) eq_refl).
+    reflexivity.
+Qed.
+
+Lemma regime_path_class_stableb_true_iff :
+  forall xs rs,
+    regime_path_class_stableb xs rs = true <->
+    regime_path_class_stable xs rs.
+Proof.
+  intros xs rs.
+  induction rs as [|r1 rs' IH]; simpl.
+  - split.
+    + intro H.
+      exact I.
+    + intro H.
+      reflexivity.
+  - destruct rs' as [|r2 rs'']; simpl.
+    + split.
+      * intro H.
+        exact I.
+      * intro H.
+        reflexivity.
+    + split.
+      * intro H.
+        apply Bool.andb_true_iff in H as [H12 Hrest].
+        split.
+        -- apply pulse_class_list_eqb_true_iff in H12.
+           exact H12.
+        -- apply IH in Hrest.
+           exact Hrest.
+      * intro H.
+        destruct H as [H12 Hrest].
+        apply Bool.andb_true_iff.
+        split.
+        -- apply pulse_class_list_eqb_true_iff.
+           exact H12.
+        -- apply IH.
+           exact Hrest.
+Qed.
+
+Lemma regime_path_phase_stableb_true_iff :
+  forall descriptor state xs rs,
+    regime_path_phase_stableb descriptor state xs rs = true <->
+    regime_path_phase_stable descriptor state xs rs.
+Proof.
+  intros descriptor state xs rs.
+  induction rs as [|r1 rs' IH]; simpl.
+  - split.
+    + intro H.
+      exact I.
+    + intro H.
+      reflexivity.
+  - destruct rs' as [|r2 rs'']; simpl.
+    + split.
+      * intro H.
+        exact I.
+      * intro H.
+        reflexivity.
+    + split.
+      * intro H.
+        apply Bool.andb_true_iff in H as [H12 Hrest].
+        split.
+        -- apply packet_schema_descriptor_phase_signature_eqb_true_iff in H12.
+           exact H12.
+        -- apply IH in Hrest.
+           exact Hrest.
+      * intro H.
+        destruct H as [H12 Hrest].
+        apply Bool.andb_true_iff.
+        split.
+        -- apply packet_schema_descriptor_phase_signature_eqb_true_iff.
+           exact H12.
+        -- apply IH.
+           exact Hrest.
+Qed.
+
+Theorem regime_path_has_class_transitionb_eq_negb_regime_path_class_stableb :
+  forall xs rs,
+    regime_path_has_class_transitionb xs rs =
+      negb (regime_path_class_stableb xs rs).
+Proof.
+  intros xs rs.
+  induction rs as [|r1 rs' IH]; simpl.
+  - reflexivity.
+  - destruct rs' as [|r2 rs'']; simpl.
+    + reflexivity.
+    + unfold class_transition_between_observation_regimesb.
+      destruct (pulse_class_list_eqb
+                  (class_signature_from_iq_regime r1 xs)
+                  (class_signature_from_iq_regime r2 xs)) eqn:Heq; simpl.
+      * exact IH.
+      * reflexivity.
+Qed.
+
+Theorem packet_schema_descriptor_phase_transition_between_observation_regimes_implies_class_transition :
+  forall descriptor state regime1 regime2 xs,
+    packet_schema_descriptor_phase_transition_between_observation_regimes
+      descriptor state regime1 regime2 xs ->
+    class_transition_between_observation_regimes
+      regime1 regime2 xs.
+Proof.
+  intros descriptor state regime1 regime2 xs Hphase Hclasses.
+  unfold packet_schema_descriptor_phase_transition_between_observation_regimes in Hphase.
+  unfold class_transition_between_observation_regimes in Hclasses.
+  unfold packet_schema_descriptor_phase_signature_from_iq_regime,
+    class_signature_from_iq_regime in *.
+  apply Hphase.
+  apply class_invariant_between_iq_regimes_implies_packet_schema_descriptor_phase_signature_invariant.
+  exact Hclasses.
+Qed.
+
+Theorem frame_bit_count_transition_between_iq_regimes_implies_class_transition :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    frame_bit_count_transition_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs ->
+    class_transition_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hcount Hclasses.
+  apply Hcount.
+  apply class_invariant_between_iq_regimes_implies_frame_bit_count_invariant.
+  exact Hclasses.
+Qed.
+
+Theorem frame_word_transition_between_iq_regimes_implies_class_transition :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    frame_word_transition_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs ->
+    class_transition_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hword Hclasses.
+  apply Hword.
+  apply class_invariant_between_iq_regimes_implies_frame_word_invariant.
+  exact Hclasses.
+Qed.
+
+Theorem decoded_view_transition_between_iq_regimes_implies_class_transition :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    decoded_view_transition_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs ->
+    class_transition_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hview Hclasses.
+  apply Hview.
+  apply class_invariant_between_iq_regimes_implies_decoded_view_invariant.
+  exact Hclasses.
+Qed.
+
+Theorem family_descriptor_transition_between_iq_regimes_implies_class_transition :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    family_descriptor_transition_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs ->
+    class_transition_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hdescriptor Hclasses.
+  apply Hdescriptor.
+  apply class_invariant_between_iq_regimes_implies_descriptor_invariant.
+  exact Hclasses.
+Qed.
+
+Theorem semantic_tower_transition_between_iq_regimes_implies_class_transition :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    semantic_tower_transition_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs ->
+    class_transition_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Htower Hclasses.
+  apply Htower.
+  apply class_invariant_between_iq_regimes_implies_semantic_tower_invariant.
+  exact Hclasses.
+Qed.
+
+Theorem packet_schema_descriptor_observation_transition_between_iq_regimes_implies_class_transition :
+  forall descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    packet_schema_descriptor_observation_transition_between_iq_regimes
+      descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs ->
+    class_transition_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs.
+Proof.
+  intros descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs
+    Hobservation Hclasses.
+  apply Hobservation.
+  apply class_invariant_between_iq_regimes_implies_packet_schema_descriptor_observation_invariant.
+  exact Hclasses.
+Qed.
+
+Theorem packet_schema_descriptor_phase_transition_between_iq_regimes_implies_class_transition :
+  forall descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    packet_schema_descriptor_phase_transition_between_iq_regimes
+      descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs ->
+    class_transition_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs.
+Proof.
+  intros descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs
+    Hphase Hclasses.
+  apply Hphase.
+  apply class_invariant_between_iq_regimes_implies_packet_schema_descriptor_phase_signature_invariant.
+  exact Hclasses.
+Qed.
+
+Theorem class_invariant_between_observation_regimes_implies_phase_signature_invariant :
+  forall descriptor state regime1 regime2 xs,
+    class_signature_from_iq_regime regime1 xs =
+      class_signature_from_iq_regime regime2 xs ->
+    packet_schema_descriptor_phase_signature_from_iq_regime
+      descriptor state regime1 xs =
+      packet_schema_descriptor_phase_signature_from_iq_regime
+        descriptor state regime2 xs.
+Proof.
+  intros descriptor state regime1 regime2 xs Hclasses.
+  unfold class_signature_from_iq_regime,
+    packet_schema_descriptor_phase_signature_from_iq_regime in *.
+  apply class_invariant_between_iq_regimes_implies_packet_schema_descriptor_phase_signature_invariant.
+  exact Hclasses.
+Qed.
+
+Theorem regime_path_class_stable_implies_phase_stable :
+  forall descriptor state xs rs,
+    regime_path_class_stable xs rs ->
+    regime_path_phase_stable descriptor state xs rs.
+Proof.
+  intros descriptor state xs rs.
+  induction rs as [|r1 rs' IH]; simpl; intro Hstable.
+  - exact I.
+  - destruct rs' as [|r2 rs'']; simpl in *.
+    + exact I.
+    + destruct Hstable as [H12 Hrest].
+      split.
+      * apply class_invariant_between_observation_regimes_implies_phase_signature_invariant.
+        exact H12.
+      * apply IH.
+        exact Hrest.
+Qed.
+
+Theorem regime_path_phase_stable_implies_endpoint_phase_invariant :
+  forall descriptor state xs r rs,
+    regime_path_phase_stable descriptor state xs (r :: rs) ->
+    packet_schema_descriptor_phase_signature_from_iq_regime
+      descriptor state r xs =
+      packet_schema_descriptor_phase_signature_from_iq_regime
+      descriptor state (last_observation_regime_or r rs) xs.
+Proof.
+  intros descriptor state xs r rs.
+  revert r.
+  induction rs as [|r2 rs' IH]; intros r Hstable; simpl in *.
+  - reflexivity.
+  - destruct rs' as [|r3 rs'']; simpl in *.
+    + destruct Hstable as [H12 _].
+      exact H12.
+    + destruct Hstable as [H12 Hrest].
+      rewrite H12.
+      apply (IH r2).
+      exact Hrest.
+Qed.
+
+Theorem regime_path_class_stable_implies_endpoint_phase_invariant :
+  forall descriptor state xs r rs,
+    regime_path_class_stable xs (r :: rs) ->
+    packet_schema_descriptor_phase_signature_from_iq_regime
+      descriptor state r xs =
+      packet_schema_descriptor_phase_signature_from_iq_regime
+        descriptor state (last_observation_regime_or r rs) xs.
+Proof.
+  intros descriptor state xs r rs Hstable.
+  apply regime_path_phase_stable_implies_endpoint_phase_invariant.
+  apply regime_path_class_stable_implies_phase_stable.
+  exact Hstable.
+Qed.
+
+Theorem endpoint_phase_transition_implies_not_regime_path_class_stable :
+  forall descriptor state xs r rs,
+    packet_schema_descriptor_phase_signature_from_iq_regime
+      descriptor state r xs <>
+      packet_schema_descriptor_phase_signature_from_iq_regime
+        descriptor state (last_observation_regime_or r rs) xs ->
+    ~ regime_path_class_stable xs (r :: rs).
+Proof.
+  intros descriptor state xs r rs Htransition Hstable.
+  apply Htransition.
+  apply regime_path_class_stable_implies_endpoint_phase_invariant.
+  exact Hstable.
+Qed.
+
+Theorem regime_path_has_phase_transitionb_eq_negb_regime_path_phase_stableb :
+  forall descriptor state xs rs,
+    regime_path_has_phase_transitionb descriptor state xs rs =
+      negb (regime_path_phase_stableb descriptor state xs rs).
+Proof.
+  intros descriptor state xs rs.
+  induction rs as [|r1 rs' IH]; simpl.
+  - reflexivity.
+  - destruct rs' as [|r2 rs'']; simpl.
+    + reflexivity.
+    + unfold packet_schema_descriptor_phase_transition_between_observation_regimesb.
+      destruct (packet_schema_descriptor_phase_signature_eqb
+                  (packet_schema_descriptor_phase_signature_from_iq_regime
+                     descriptor state r1 xs)
+                  (packet_schema_descriptor_phase_signature_from_iq_regime
+                     descriptor state r2 xs)) eqn:Heq; simpl.
+      * exact IH.
+      * reflexivity.
+Qed.
+
+Theorem class_transition_between_iq_regimesb_true_iff :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    class_transition_between_iq_regimesb
+      window_pairs1 threshold1 window_pairs2 threshold2 xs = true <->
+    class_transition_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs.
+  split.
+  - intros Htransition Heq.
+    unfold class_transition_between_iq_regimesb in Htransition.
+    apply Bool.negb_true_iff in Htransition.
+    assert
+      (pulse_class_list_eqb
+         (canonical_pulse_classes_from_iq window_pairs1 threshold1 xs)
+         (canonical_pulse_classes_from_iq window_pairs2 threshold2 xs) = true)
+      as Heqb.
+    { apply pulse_class_list_eqb_true_iff.
+      exact Heq. }
+    rewrite Heqb in Htransition.
+    discriminate.
+  - intro Htransition.
+    unfold class_transition_between_iq_regimesb.
+    destruct (pulse_class_list_eqb
+                (canonical_pulse_classes_from_iq window_pairs1 threshold1 xs)
+                (canonical_pulse_classes_from_iq window_pairs2 threshold2 xs))
+      eqn:Heqb.
+    + exfalso.
+      apply Htransition.
+      apply pulse_class_list_eqb_true_iff.
+      exact Heqb.
+    + reflexivity.
+Qed.
+
+Theorem packet_schema_descriptor_phase_transition_between_iq_regimesb_true_iff :
+  forall descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    packet_schema_descriptor_phase_transition_between_iq_regimesb
+      descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs = true <->
+    packet_schema_descriptor_phase_transition_between_iq_regimes
+      descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs.
+Proof.
+  intros descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs.
+  split.
+  - intros Htransition Heq.
+    unfold packet_schema_descriptor_phase_transition_between_iq_regimesb in Htransition.
+    apply Bool.negb_true_iff in Htransition.
+    assert
+      (packet_schema_descriptor_phase_signature_eqb
+         (packet_schema_descriptor_phase_signature_from_iq
+            descriptor state window_pairs1 threshold1 xs)
+         (packet_schema_descriptor_phase_signature_from_iq
+            descriptor state window_pairs2 threshold2 xs) = true)
+      as Heqb.
+    { apply packet_schema_descriptor_phase_signature_eqb_true_iff.
+      exact Heq. }
+    rewrite Heqb in Htransition.
+    discriminate.
+  - intro Htransition.
+    unfold packet_schema_descriptor_phase_transition_between_iq_regimesb.
+    destruct (packet_schema_descriptor_phase_signature_eqb
+                (packet_schema_descriptor_phase_signature_from_iq
+                   descriptor state window_pairs1 threshold1 xs)
+                (packet_schema_descriptor_phase_signature_from_iq
+                   descriptor state window_pairs2 threshold2 xs))
+      eqn:Heqb.
+    + exfalso.
+      apply Htransition.
+      apply packet_schema_descriptor_phase_signature_eqb_true_iff.
+      exact Heqb.
+    + reflexivity.
+Qed.
+
+Theorem class_transition_between_observation_regimesb_true_iff :
+  forall regime1 regime2 xs,
+    class_transition_between_observation_regimesb regime1 regime2 xs = true <->
+    class_transition_between_observation_regimes regime1 regime2 xs.
+Proof.
+  intros regime1 regime2 xs.
+  split.
+  - intros Htransition Heq.
+    unfold class_transition_between_observation_regimesb in Htransition.
+    apply Bool.negb_true_iff in Htransition.
+    assert
+      (pulse_class_list_eqb
+         (class_signature_from_iq_regime regime1 xs)
+         (class_signature_from_iq_regime regime2 xs) = true)
+      as Heqb.
+    { apply pulse_class_list_eqb_true_iff.
+      exact Heq. }
+    rewrite Heqb in Htransition.
+    discriminate.
+  - intro Htransition.
+    unfold class_transition_between_observation_regimesb.
+    destruct (pulse_class_list_eqb
+                (class_signature_from_iq_regime regime1 xs)
+                (class_signature_from_iq_regime regime2 xs))
+      eqn:Heqb.
+    + exfalso.
+      apply Htransition.
+      apply pulse_class_list_eqb_true_iff.
+      exact Heqb.
+    + reflexivity.
+Qed.
+
+Theorem packet_schema_descriptor_phase_transition_between_observation_regimesb_true_iff :
+  forall descriptor state regime1 regime2 xs,
+    packet_schema_descriptor_phase_transition_between_observation_regimesb
+      descriptor state regime1 regime2 xs = true <->
+    packet_schema_descriptor_phase_transition_between_observation_regimes
+      descriptor state regime1 regime2 xs.
+Proof.
+  intros descriptor state regime1 regime2 xs.
+  split.
+  - intros Htransition Heq.
+    unfold packet_schema_descriptor_phase_transition_between_observation_regimesb in Htransition.
+    apply Bool.negb_true_iff in Htransition.
+    assert
+      (packet_schema_descriptor_phase_signature_eqb
+         (packet_schema_descriptor_phase_signature_from_iq_regime
+            descriptor state regime1 xs)
+         (packet_schema_descriptor_phase_signature_from_iq_regime
+            descriptor state regime2 xs) = true)
+      as Heqb.
+    { apply packet_schema_descriptor_phase_signature_eqb_true_iff.
+      exact Heq. }
+    rewrite Heqb in Htransition.
+    discriminate.
+  - intro Htransition.
+    unfold packet_schema_descriptor_phase_transition_between_observation_regimesb.
+    destruct (packet_schema_descriptor_phase_signature_eqb
+                (packet_schema_descriptor_phase_signature_from_iq_regime
+                   descriptor state regime1 xs)
+                (packet_schema_descriptor_phase_signature_from_iq_regime
+                   descriptor state regime2 xs))
+      eqn:Heqb.
+    + exfalso.
+      apply Htransition.
+      apply packet_schema_descriptor_phase_signature_eqb_true_iff.
+      exact Heqb.
+    + reflexivity.
+Qed.
+
+Theorem packet_schema_descriptor_phase_transition_between_iq_regimesb_true_implies_class_transition_between_iq_regimesb_true :
+  forall descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    packet_schema_descriptor_phase_transition_between_iq_regimesb
+      descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs = true ->
+    class_transition_between_iq_regimesb
+      window_pairs1 threshold1 window_pairs2 threshold2 xs = true.
+Proof.
+  intros descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs
+    Hphase.
+  apply class_transition_between_iq_regimesb_true_iff.
+  eapply packet_schema_descriptor_phase_transition_between_iq_regimes_implies_class_transition.
+  apply packet_schema_descriptor_phase_transition_between_iq_regimesb_true_iff.
+  exact Hphase.
+Qed.
+
+Theorem packet_schema_descriptor_phase_transition_between_observation_regimesb_true_implies_class_transition_between_observation_regimesb_true :
+  forall descriptor state regime1 regime2 xs,
+    packet_schema_descriptor_phase_transition_between_observation_regimesb
+      descriptor state regime1 regime2 xs = true ->
+    class_transition_between_observation_regimesb regime1 regime2 xs = true.
+Proof.
+  intros descriptor state regime1 regime2 xs Hphase.
+  apply class_transition_between_observation_regimesb_true_iff.
+  eapply packet_schema_descriptor_phase_transition_between_observation_regimes_implies_class_transition.
+  apply packet_schema_descriptor_phase_transition_between_observation_regimesb_true_iff.
+  exact Hphase.
+Qed.
+
+Theorem regime_path_has_phase_transitionb_true_implies_regime_path_has_class_transitionb_true :
+  forall descriptor state xs rs,
+    regime_path_has_phase_transitionb descriptor state xs rs = true ->
+    regime_path_has_class_transitionb xs rs = true.
+Proof.
+  intros descriptor state xs rs Hphase.
+  destruct (regime_path_has_class_transitionb xs rs) eqn:Hclass.
+  - reflexivity.
+  - rewrite regime_path_has_class_transitionb_eq_negb_regime_path_class_stableb in Hclass.
+    apply Bool.negb_false_iff in Hclass.
+    pose proof
+      (proj1 (regime_path_class_stableb_true_iff xs rs) Hclass)
+      as Hstable.
+    pose proof
+      (regime_path_class_stable_implies_phase_stable
+         descriptor state xs rs Hstable)
+      as Hphase_stable.
+    pose proof
+      (proj2 (regime_path_phase_stableb_true_iff descriptor state xs rs)
+         Hphase_stable)
+      as Hphaseb.
+    rewrite regime_path_has_phase_transitionb_eq_negb_regime_path_phase_stableb in Hphase.
+    rewrite Hphaseb in Hphase.
+    discriminate.
+Qed.
+
+Theorem endpoint_phase_transition_implies_regime_path_phase_stableb_false :
+  forall descriptor state xs r rs,
+    packet_schema_descriptor_phase_signature_from_iq_regime
+      descriptor state r xs <>
+      packet_schema_descriptor_phase_signature_from_iq_regime
+        descriptor state (last_observation_regime_or r rs) xs ->
+    regime_path_phase_stableb descriptor state xs (r :: rs) = false.
+Proof.
+  intros descriptor state xs r rs Htransition.
+  destruct (regime_path_phase_stableb descriptor state xs (r :: rs)) eqn:Hstable.
+  - exfalso.
+    apply Htransition.
+    apply regime_path_phase_stable_implies_endpoint_phase_invariant.
+    apply (proj1 (regime_path_phase_stableb_true_iff descriptor state xs (r :: rs))).
+    exact Hstable.
+  - reflexivity.
+Qed.
+
+Theorem endpoint_phase_transition_implies_regime_path_class_stableb_false :
+  forall descriptor state xs r rs,
+    packet_schema_descriptor_phase_signature_from_iq_regime
+      descriptor state r xs <>
+      packet_schema_descriptor_phase_signature_from_iq_regime
+        descriptor state (last_observation_regime_or r rs) xs ->
+    regime_path_class_stableb xs (r :: rs) = false.
+Proof.
+  intros descriptor state xs r rs Htransition.
+  destruct (regime_path_class_stableb xs (r :: rs)) eqn:Hstable.
+  - exfalso.
+    apply Htransition.
+    apply regime_path_class_stable_implies_endpoint_phase_invariant.
+    apply (proj1 (regime_path_class_stableb_true_iff xs (r :: rs))).
+    exact Hstable.
+  - reflexivity.
+Qed.
+
+Theorem endpoint_phase_transition_implies_regime_path_has_phase_transitionb_true :
+  forall descriptor state xs r rs,
+    packet_schema_descriptor_phase_signature_from_iq_regime
+      descriptor state r xs <>
+      packet_schema_descriptor_phase_signature_from_iq_regime
+        descriptor state (last_observation_regime_or r rs) xs ->
+    regime_path_has_phase_transitionb descriptor state xs (r :: rs) = true.
+Proof.
+  intros descriptor state xs r rs Htransition.
+  rewrite regime_path_has_phase_transitionb_eq_negb_regime_path_phase_stableb.
+  rewrite
+    (endpoint_phase_transition_implies_regime_path_phase_stableb_false
+       descriptor state xs r rs Htransition).
+  reflexivity.
+Qed.
+
+Theorem endpoint_phase_transition_implies_regime_path_has_class_transitionb_true :
+  forall descriptor state xs r rs,
+    packet_schema_descriptor_phase_signature_from_iq_regime
+      descriptor state r xs <>
+      packet_schema_descriptor_phase_signature_from_iq_regime
+        descriptor state (last_observation_regime_or r rs) xs ->
+    regime_path_has_class_transitionb xs (r :: rs) = true.
+Proof.
+  intros descriptor state xs r rs Htransition.
+  rewrite regime_path_has_class_transitionb_eq_negb_regime_path_class_stableb.
+  rewrite
+    (endpoint_phase_transition_implies_regime_path_class_stableb_false
+       descriptor state xs r rs Htransition).
+  reflexivity.
+Qed.
+
+Theorem endpoint_phase_transition_implies_atlas_class_stable_false :
+  forall descriptor state xs r rs,
+    packet_schema_descriptor_phase_signature_from_iq_regime
+      descriptor state r xs <>
+      packet_schema_descriptor_phase_signature_from_iq_regime
+        descriptor state (last_observation_regime_or r rs) xs ->
+    atlas_class_stable
+      (regime_phase_atlas_from_iq descriptor state (r :: rs) xs) = false.
+Proof.
+  intros descriptor state xs r rs Htransition.
+  exact
+    (endpoint_phase_transition_implies_regime_path_class_stableb_false
+       descriptor state xs r rs Htransition).
+Qed.
+
+Theorem endpoint_phase_transition_implies_atlas_phase_stable_false :
+  forall descriptor state xs r rs,
+    packet_schema_descriptor_phase_signature_from_iq_regime
+      descriptor state r xs <>
+      packet_schema_descriptor_phase_signature_from_iq_regime
+        descriptor state (last_observation_regime_or r rs) xs ->
+    atlas_phase_stable
+      (regime_phase_atlas_from_iq descriptor state (r :: rs) xs) = false.
+Proof.
+  intros descriptor state xs r rs Htransition.
+  exact
+    (endpoint_phase_transition_implies_regime_path_phase_stableb_false
+       descriptor state xs r rs Htransition).
 Qed.
 
 Theorem same_emitter_class_iq_refl :
