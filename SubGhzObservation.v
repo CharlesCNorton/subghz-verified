@@ -3065,6 +3065,26 @@ Proof.
   reflexivity.
 Qed.
 
+Theorem frame_bits_invariant_between_iq_regimes_implies_packet_schema_descriptor_observation_invariant :
+  forall descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    canonical_frame_bits_from_iq window_pairs1 threshold1 xs =
+      canonical_frame_bits_from_iq window_pairs2 threshold2 xs ->
+    packet_schema_descriptor_observation_from_iq
+      descriptor state window_pairs1 threshold1 xs =
+      packet_schema_descriptor_observation_from_iq
+        descriptor state window_pairs2 threshold2 xs.
+Proof.
+  intros descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs Hbits.
+  unfold packet_schema_descriptor_observation_from_iq.
+  rewrite
+    (frame_bits_invariant_between_iq_regimes_implies_packet_schema_descriptor_structure_invariant
+       descriptor window_pairs1 threshold1 window_pairs2 threshold2 xs Hbits).
+  rewrite
+    (frame_bits_invariant_between_iq_regimes_implies_packet_schema_descriptor_fresh_invariant
+       descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs Hbits).
+  reflexivity.
+Qed.
+
 Theorem class_invariant_between_iq_regimes_implies_packet_schema_descriptor_observation_invariant :
   forall descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs,
     canonical_pulse_classes_from_iq window_pairs1 threshold1 xs =
@@ -3351,6 +3371,73 @@ Definition packet_schema_descriptor_phase_transition_between_iq_regimes
   packet_schema_descriptor_phase_signature_from_iq
     descriptor state window_pairs2 threshold2 xs.
 
+Inductive ObservationBoundaryKind :=
+| BoundaryStable
+| BoundaryMetamer
+| BoundaryTruncation
+| BoundaryDrift.
+
+Definition observation_boundary_kind_code
+    (kind : ObservationBoundaryKind)
+    : nat :=
+  match kind with
+  | BoundaryStable => 0
+  | BoundaryMetamer => 1
+  | BoundaryTruncation => 2
+  | BoundaryDrift => 3
+  end.
+
+Definition metamer_boundary_between_iq_regimes
+    (window_pairs1 threshold1 window_pairs2 threshold2 : nat)
+    (xs : ByteStream)
+    : Prop :=
+  class_transition_between_iq_regimes
+    window_pairs1 threshold1 window_pairs2 threshold2 xs /\
+  canonical_frame_bits_from_iq window_pairs1 threshold1 xs =
+    canonical_frame_bits_from_iq window_pairs2 threshold2 xs.
+
+Definition truncation_wall_between_iq_regimes
+    (window_pairs1 threshold1 window_pairs2 threshold2 : nat)
+    (xs : ByteStream)
+    : Prop :=
+  class_transition_between_iq_regimes
+    window_pairs1 threshold1 window_pairs2 threshold2 xs /\
+  (bool_list_strict_prefix
+     (canonical_frame_bits_from_iq window_pairs1 threshold1 xs)
+     (canonical_frame_bits_from_iq window_pairs2 threshold2 xs) \/
+   bool_list_strict_prefix
+     (canonical_frame_bits_from_iq window_pairs2 threshold2 xs)
+     (canonical_frame_bits_from_iq window_pairs1 threshold1 xs)).
+
+Definition drift_wall_between_iq_regimes
+    (window_pairs1 threshold1 window_pairs2 threshold2 : nat)
+    (xs : ByteStream)
+    : Prop :=
+  class_transition_between_iq_regimes
+    window_pairs1 threshold1 window_pairs2 threshold2 xs /\
+  canonical_frame_bits_from_iq window_pairs1 threshold1 xs <>
+    canonical_frame_bits_from_iq window_pairs2 threshold2 xs /\
+  ~ bool_list_strict_prefix
+      (canonical_frame_bits_from_iq window_pairs1 threshold1 xs)
+      (canonical_frame_bits_from_iq window_pairs2 threshold2 xs) /\
+  ~ bool_list_strict_prefix
+      (canonical_frame_bits_from_iq window_pairs2 threshold2 xs)
+      (canonical_frame_bits_from_iq window_pairs1 threshold1 xs).
+
+Definition observation_boundary_kind_from_frame_bits
+    (class_changed : bool)
+    (bits1 bits2 : list bool)
+    : ObservationBoundaryKind :=
+  if class_changed then
+    if bool_list_eqb bits1 bits2 then
+      BoundaryMetamer
+    else if bool_list_strict_prefixb bits1 bits2 || bool_list_strict_prefixb bits2 bits1 then
+      BoundaryTruncation
+    else
+      BoundaryDrift
+  else
+    BoundaryStable.
+
 Record ObservationRegime := {
   regime_window_pairs : nat;
   regime_threshold : nat
@@ -3419,6 +3506,76 @@ Definition packet_schema_descriptor_phase_transition_between_observation_regimes
     descriptor state regime1 xs <>
   packet_schema_descriptor_phase_signature_from_iq_regime
     descriptor state regime2 xs.
+
+Definition metamer_boundary_between_observation_regimes
+    (regime1 regime2 : ObservationRegime)
+    (xs : ByteStream)
+    : Prop :=
+  class_transition_between_observation_regimes regime1 regime2 xs /\
+  canonical_frame_bits_from_iq
+    (regime_window_pairs regime1)
+    (regime_threshold regime1)
+    xs =
+  canonical_frame_bits_from_iq
+    (regime_window_pairs regime2)
+    (regime_threshold regime2)
+    xs.
+
+Definition truncation_wall_between_observation_regimes
+    (regime1 regime2 : ObservationRegime)
+    (xs : ByteStream)
+    : Prop :=
+  class_transition_between_observation_regimes regime1 regime2 xs /\
+  (bool_list_strict_prefix
+     (canonical_frame_bits_from_iq
+        (regime_window_pairs regime1)
+        (regime_threshold regime1)
+        xs)
+     (canonical_frame_bits_from_iq
+        (regime_window_pairs regime2)
+        (regime_threshold regime2)
+        xs) \/
+   bool_list_strict_prefix
+     (canonical_frame_bits_from_iq
+        (regime_window_pairs regime2)
+        (regime_threshold regime2)
+        xs)
+     (canonical_frame_bits_from_iq
+        (regime_window_pairs regime1)
+        (regime_threshold regime1)
+        xs)).
+
+Definition drift_wall_between_observation_regimes
+    (regime1 regime2 : ObservationRegime)
+    (xs : ByteStream)
+    : Prop :=
+  class_transition_between_observation_regimes regime1 regime2 xs /\
+  canonical_frame_bits_from_iq
+    (regime_window_pairs regime1)
+    (regime_threshold regime1)
+    xs <>
+  canonical_frame_bits_from_iq
+    (regime_window_pairs regime2)
+    (regime_threshold regime2)
+    xs /\
+  ~ bool_list_strict_prefix
+      (canonical_frame_bits_from_iq
+         (regime_window_pairs regime1)
+         (regime_threshold regime1)
+         xs)
+      (canonical_frame_bits_from_iq
+         (regime_window_pairs regime2)
+         (regime_threshold regime2)
+         xs) /\
+  ~ bool_list_strict_prefix
+      (canonical_frame_bits_from_iq
+         (regime_window_pairs regime2)
+         (regime_threshold regime2)
+         xs)
+      (canonical_frame_bits_from_iq
+         (regime_window_pairs regime1)
+         (regime_threshold regime1)
+         xs).
 
 Fixpoint last_observation_regime_or
     (default : ObservationRegime)
@@ -3508,6 +3665,31 @@ Definition packet_schema_descriptor_phase_transition_between_observation_regimes
           descriptor state regime1 xs)
        (packet_schema_descriptor_phase_signature_from_iq_regime
           descriptor state regime2 xs)).
+
+Definition observation_boundary_kind_between_iq_regimes
+    (window_pairs1 threshold1 window_pairs2 threshold2 : nat)
+    (xs : ByteStream)
+    : ObservationBoundaryKind :=
+  observation_boundary_kind_from_frame_bits
+    (class_transition_between_iq_regimesb
+       window_pairs1 threshold1 window_pairs2 threshold2 xs)
+    (canonical_frame_bits_from_iq window_pairs1 threshold1 xs)
+    (canonical_frame_bits_from_iq window_pairs2 threshold2 xs).
+
+Definition observation_boundary_kind_between_observation_regimes
+    (regime1 regime2 : ObservationRegime)
+    (xs : ByteStream)
+    : ObservationBoundaryKind :=
+  observation_boundary_kind_from_frame_bits
+    (class_transition_between_observation_regimesb regime1 regime2 xs)
+    (canonical_frame_bits_from_iq
+       (regime_window_pairs regime1)
+       (regime_threshold regime1)
+       xs)
+    (canonical_frame_bits_from_iq
+       (regime_window_pairs regime2)
+       (regime_threshold regime2)
+       xs).
 
 Fixpoint regime_path_class_stableb
     (xs : ByteStream)
@@ -3626,6 +3808,21 @@ Fixpoint observation_regime_phase_transition_mask
           packet_schema_descriptor_phase_transition_between_observation_regimesb
             descriptor state r1 r2 xs
           :: observation_regime_phase_transition_mask descriptor state xs rs'
+      end
+  end.
+
+Fixpoint observation_regime_boundary_kind_mask
+    (xs : ByteStream)
+    (rs : list ObservationRegime)
+    : list ObservationBoundaryKind :=
+  match rs with
+  | [] => []
+  | r1 :: rs' =>
+      match rs' with
+      | [] => []
+      | r2 :: _ =>
+          observation_boundary_kind_between_observation_regimes r1 r2 xs
+          :: observation_regime_boundary_kind_mask xs rs'
       end
   end.
 
@@ -4434,6 +4631,245 @@ Proof.
   eapply packet_schema_descriptor_phase_transition_between_observation_regimes_implies_class_transition.
   apply packet_schema_descriptor_phase_transition_between_observation_regimesb_true_iff.
   exact Hphase.
+Qed.
+
+Theorem observation_boundary_kind_between_iq_regimes_metamer_sound :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    observation_boundary_kind_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs = BoundaryMetamer ->
+    metamer_boundary_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hkind.
+  unfold observation_boundary_kind_between_iq_regimes,
+    observation_boundary_kind_from_frame_bits in Hkind.
+  destruct (class_transition_between_iq_regimesb
+              window_pairs1 threshold1 window_pairs2 threshold2 xs) eqn:Hclassb.
+  - destruct (bool_list_eqb
+                (canonical_frame_bits_from_iq window_pairs1 threshold1 xs)
+                (canonical_frame_bits_from_iq window_pairs2 threshold2 xs)) eqn:Hbitsb.
+    + split.
+      * apply class_transition_between_iq_regimesb_true_iff.
+        exact Hclassb.
+      * apply bool_list_eqb_true_iff.
+        exact Hbitsb.
+    + destruct (bool_list_strict_prefixb
+                  (canonical_frame_bits_from_iq window_pairs1 threshold1 xs)
+                  (canonical_frame_bits_from_iq window_pairs2 threshold2 xs)
+                ||
+                bool_list_strict_prefixb
+                  (canonical_frame_bits_from_iq window_pairs2 threshold2 xs)
+                  (canonical_frame_bits_from_iq window_pairs1 threshold1 xs));
+        simpl in Hkind; discriminate.
+  - simpl in Hkind.
+    discriminate.
+Qed.
+
+Theorem observation_boundary_kind_between_iq_regimes_truncation_sound :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    observation_boundary_kind_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs = BoundaryTruncation ->
+    truncation_wall_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hkind.
+  unfold observation_boundary_kind_between_iq_regimes,
+    observation_boundary_kind_from_frame_bits in Hkind.
+  destruct (class_transition_between_iq_regimesb
+              window_pairs1 threshold1 window_pairs2 threshold2 xs) eqn:Hclassb.
+  - destruct (bool_list_eqb
+                (canonical_frame_bits_from_iq window_pairs1 threshold1 xs)
+                (canonical_frame_bits_from_iq window_pairs2 threshold2 xs)) eqn:Hbitsb.
+    + simpl in Hkind.
+      discriminate.
+    + destruct (bool_list_strict_prefixb
+                  (canonical_frame_bits_from_iq window_pairs1 threshold1 xs)
+                  (canonical_frame_bits_from_iq window_pairs2 threshold2 xs)
+                ||
+                bool_list_strict_prefixb
+                  (canonical_frame_bits_from_iq window_pairs2 threshold2 xs)
+                  (canonical_frame_bits_from_iq window_pairs1 threshold1 xs))
+        eqn:Hprefixb.
+      * split.
+        -- apply class_transition_between_iq_regimesb_true_iff.
+           exact Hclassb.
+        -- apply Bool.orb_true_iff in Hprefixb.
+           destruct Hprefixb as [Hprefix | Hprefix].
+           ++ left.
+              apply bool_list_strict_prefixb_true_iff.
+              exact Hprefix.
+           ++ right.
+              apply bool_list_strict_prefixb_true_iff.
+              exact Hprefix.
+      * simpl in Hkind.
+        discriminate.
+  - simpl in Hkind.
+    discriminate.
+Qed.
+
+Theorem observation_boundary_kind_between_iq_regimes_drift_sound :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    observation_boundary_kind_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs = BoundaryDrift ->
+    drift_wall_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs Hkind.
+  unfold observation_boundary_kind_between_iq_regimes,
+    observation_boundary_kind_from_frame_bits in Hkind.
+  destruct (class_transition_between_iq_regimesb
+              window_pairs1 threshold1 window_pairs2 threshold2 xs) eqn:Hclassb.
+  - destruct (bool_list_eqb
+                (canonical_frame_bits_from_iq window_pairs1 threshold1 xs)
+                (canonical_frame_bits_from_iq window_pairs2 threshold2 xs)) eqn:Hbitsb.
+    + simpl in Hkind.
+      discriminate.
+    + destruct (bool_list_strict_prefixb
+                  (canonical_frame_bits_from_iq window_pairs1 threshold1 xs)
+                  (canonical_frame_bits_from_iq window_pairs2 threshold2 xs)
+                ||
+                bool_list_strict_prefixb
+                  (canonical_frame_bits_from_iq window_pairs2 threshold2 xs)
+                  (canonical_frame_bits_from_iq window_pairs1 threshold1 xs))
+        eqn:Hprefixb.
+      * simpl in Hkind.
+        discriminate.
+      * repeat split.
+        -- apply class_transition_between_iq_regimesb_true_iff.
+           exact Hclassb.
+        -- intro Hbits.
+           assert
+             (bool_list_eqb
+                (canonical_frame_bits_from_iq window_pairs1 threshold1 xs)
+                (canonical_frame_bits_from_iq window_pairs2 threshold2 xs) = true)
+             as Hbitsb_true.
+           { apply bool_list_eqb_true_iff.
+             exact Hbits. }
+           rewrite Hbitsb_true in Hbitsb.
+           discriminate.
+        -- intro Hprefix.
+           assert
+             (bool_list_strict_prefixb
+                (canonical_frame_bits_from_iq window_pairs1 threshold1 xs)
+                (canonical_frame_bits_from_iq window_pairs2 threshold2 xs) = true)
+             as Hprefix_true.
+           { apply bool_list_strict_prefixb_true_iff.
+             exact Hprefix. }
+           rewrite Hprefix_true in Hprefixb.
+           simpl in Hprefixb.
+           discriminate.
+        -- intro Hprefix.
+           assert
+             (bool_list_strict_prefixb
+                (canonical_frame_bits_from_iq window_pairs2 threshold2 xs)
+                (canonical_frame_bits_from_iq window_pairs1 threshold1 xs) = true)
+             as Hprefix_true.
+           { apply bool_list_strict_prefixb_true_iff.
+             exact Hprefix. }
+           rewrite Hprefix_true in Hprefixb.
+           destruct
+             (bool_list_strict_prefixb
+                (canonical_frame_bits_from_iq window_pairs1 threshold1 xs)
+                (canonical_frame_bits_from_iq window_pairs2 threshold2 xs));
+             discriminate.
+  - simpl in Hkind.
+    discriminate.
+Qed.
+
+Theorem observation_boundary_kind_between_observation_regimes_metamer_sound :
+  forall regime1 regime2 xs,
+    observation_boundary_kind_between_observation_regimes regime1 regime2 xs = BoundaryMetamer ->
+    metamer_boundary_between_observation_regimes regime1 regime2 xs.
+Proof.
+  intros regime1 regime2 xs Hkind.
+  unfold observation_boundary_kind_between_observation_regimes,
+    metamer_boundary_between_observation_regimes,
+    class_transition_between_observation_regimes in *.
+  exact
+    (observation_boundary_kind_between_iq_regimes_metamer_sound
+       (regime_window_pairs regime1)
+       (regime_threshold regime1)
+       (regime_window_pairs regime2)
+       (regime_threshold regime2)
+       xs
+       Hkind).
+Qed.
+
+Theorem observation_boundary_kind_between_observation_regimes_truncation_sound :
+  forall regime1 regime2 xs,
+    observation_boundary_kind_between_observation_regimes regime1 regime2 xs = BoundaryTruncation ->
+    truncation_wall_between_observation_regimes regime1 regime2 xs.
+Proof.
+  intros regime1 regime2 xs Hkind.
+  unfold observation_boundary_kind_between_observation_regimes,
+    truncation_wall_between_observation_regimes,
+    class_transition_between_observation_regimes in *.
+  exact
+    (observation_boundary_kind_between_iq_regimes_truncation_sound
+       (regime_window_pairs regime1)
+       (regime_threshold regime1)
+       (regime_window_pairs regime2)
+       (regime_threshold regime2)
+       xs
+       Hkind).
+Qed.
+
+Theorem observation_boundary_kind_between_observation_regimes_drift_sound :
+  forall regime1 regime2 xs,
+    observation_boundary_kind_between_observation_regimes regime1 regime2 xs = BoundaryDrift ->
+    drift_wall_between_observation_regimes regime1 regime2 xs.
+Proof.
+  intros regime1 regime2 xs Hkind.
+  unfold observation_boundary_kind_between_observation_regimes,
+    drift_wall_between_observation_regimes,
+    class_transition_between_observation_regimes in *.
+  exact
+    (observation_boundary_kind_between_iq_regimes_drift_sound
+       (regime_window_pairs regime1)
+       (regime_threshold regime1)
+       (regime_window_pairs regime2)
+       (regime_threshold regime2)
+       xs
+       Hkind).
+Qed.
+
+Theorem metamer_boundary_between_iq_regimes_implies_packet_schema_descriptor_observation_invariant :
+  forall descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    metamer_boundary_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs ->
+    packet_schema_descriptor_observation_from_iq
+      descriptor state window_pairs1 threshold1 xs =
+      packet_schema_descriptor_observation_from_iq
+        descriptor state window_pairs2 threshold2 xs.
+Proof.
+  intros descriptor state window_pairs1 threshold1 window_pairs2 threshold2 xs [_ Hbits].
+  apply frame_bits_invariant_between_iq_regimes_implies_packet_schema_descriptor_observation_invariant.
+  exact Hbits.
+Qed.
+
+Theorem truncation_wall_between_iq_regimes_implies_frame_bit_count_transition :
+  forall window_pairs1 threshold1 window_pairs2 threshold2 xs,
+    truncation_wall_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs ->
+    frame_bit_count_transition_between_iq_regimes
+      window_pairs1 threshold1 window_pairs2 threshold2 xs.
+Proof.
+  intros window_pairs1 threshold1 window_pairs2 threshold2 xs [_ Htrunc].
+  unfold frame_bit_count_transition_between_iq_regimes,
+    frame_bit_count_from_iq.
+  destruct Htrunc as [Hprefix | Hprefix]; intro Hcount.
+  - pose proof
+      (bool_list_strict_prefix_implies_length_lt
+         (canonical_frame_bits_from_iq window_pairs1 threshold1 xs)
+         (canonical_frame_bits_from_iq window_pairs2 threshold2 xs)
+         Hprefix) as Hlt.
+    lia.
+  - pose proof
+      (bool_list_strict_prefix_implies_length_lt
+         (canonical_frame_bits_from_iq window_pairs2 threshold2 xs)
+         (canonical_frame_bits_from_iq window_pairs1 threshold1 xs)
+         Hprefix) as Hlt.
+    lia.
 Qed.
 
 Theorem regime_path_has_phase_transitionb_true_implies_regime_path_has_class_transitionb_true :

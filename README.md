@@ -182,8 +182,14 @@ Under that regime:
 - `structures/manifest.csv` classifies the tracked family sweeps as constant
   packet families and records the sequence rows where counter, check, flag,
   payload, and boundary behavior becomes visible
-- the `D15EA5 te175` edge capture recovers the family under the fine `15 / 98304` regime and drifts under coarser regimes
-- the `C0FFEE te175` edge capture also requires the fine `15 / 98304` regime; coarser regimes drift
+- edge captures now separate into a small regime-boundary taxonomy: `stable`
+  cells, physically realized `metamers`, `truncation` walls, and residual
+  `drift` walls
+- the `D15EA5 te175` edge capture is stable at `15 / 98304` and `18 / 147456`,
+  then becomes a physically realized metamer at `19 / 124507`
+- the `C0FFEE te175` edge capture is stable at `15 / 98304` and `18 / 147456`,
+  becomes a physically realized metamer at `19 / 124507`, and then truncates
+  to `c` at `20 / 131072`
 - the `ABCD10 te160` edge capture is a refinement edge case: the fine
   `15 / 98304` and `16 / 131072` regimes recover full `abcd10`, while the
   coarser `18 / 147456` regime changes class digest and truncates to the
@@ -192,8 +198,9 @@ Under that regime:
 - the `BEEF90 te170` edge capture is also a physically realized regime metamer
 - the `A5C3D0 te190` edge capture recovers the family only in finer regimes;
   the canonical regime truncates to the prefix
-- the `BADA50 te165` edge capture preserves the full packet only in finer
-  regimes; coarser regimes truncate toward the prefix
+- the `BADA50 te165` edge capture is stable at `15 / 98304` and `20 / 131072`,
+  then passes through drift and finally truncates under harsher coarser
+  regimes
 - the `C4FE80 te185` edge capture preserves the full packet across several
   finer regimes, while the canonical regime truncates toward the prefix
 - quiet-prefix and quiet-suffix alias captures preserve the decoded `BADA50`

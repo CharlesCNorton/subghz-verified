@@ -970,6 +970,9 @@ Fixpoint first_frame_bits_from_tokens_aux
 Definition first_frame_bits_from_tokens (xs : list FrameToken) : list bool :=
   first_frame_bits_from_tokens_aux false xs.
 
+Definition bit_tokens_of_bits (xs : list bool) : list FrameToken :=
+  map (fun b : bool => if b then FrameBitOne else FrameBitZero) xs.
+
 Definition token_noise_prefix (xs : list FrameToken) : Prop :=
   Forall (fun tok => tok = FrameBreak \/ tok = FrameUnknown) xs.
 
@@ -1022,6 +1025,123 @@ Qed.
 Definition frame_bits_from_classes (xs : list PulseClass) : list bool :=
   first_frame_bits_from_tokens (frame_tokens_from_classes xs).
 
+Definition bool_list_prefix (xs ys : list bool) : Prop :=
+  exists suffix, ys = xs ++ suffix.
+
+Definition bool_list_strict_prefix (xs ys : list bool) : Prop :=
+  exists suffix, suffix <> [] /\ ys = xs ++ suffix.
+
+Fixpoint bool_list_prefixb (xs ys : list bool) : bool :=
+  match xs, ys with
+  | [], _ => true
+  | _ :: _, [] => false
+  | x :: xs', y :: ys' => Bool.eqb x y && bool_list_prefixb xs' ys'
+  end.
+
+Definition bool_list_strict_prefixb (xs ys : list bool) : bool :=
+  bool_list_prefixb xs ys && negb (Nat.eqb (length xs) (length ys)).
+
+Lemma bool_list_prefixb_true_iff :
+  forall xs ys,
+    bool_list_prefixb xs ys = true <-> bool_list_prefix xs ys.
+Proof.
+  induction xs as [|x xs IH]; intros ys.
+  - split.
+    + intro Hprefix.
+      exists ys.
+      reflexivity.
+    + intro Hprefix.
+      reflexivity.
+  - destruct ys as [|y ys].
+    + split.
+      * intro H.
+        discriminate.
+      * intros [suffix Hsuffix].
+        simpl in Hsuffix.
+        discriminate.
+    + split.
+      * intro H.
+        destruct x, y; simpl in H; try discriminate;
+          apply IH in H;
+          destruct H as [suffix Hsuffix];
+          exists suffix;
+          simpl;
+          f_equal;
+          exact Hsuffix.
+      * intros [suffix Hsuffix].
+        destruct x, y; simpl in Hsuffix; try discriminate; inversion Hsuffix; subst;
+          apply IH;
+          exists suffix;
+          reflexivity.
+Qed.
+
+Lemma bool_list_strict_prefixb_true_iff :
+  forall xs ys,
+    bool_list_strict_prefixb xs ys = true <-> bool_list_strict_prefix xs ys.
+Proof.
+  intros xs ys.
+  unfold bool_list_strict_prefixb, bool_list_strict_prefix.
+  rewrite Bool.andb_true_iff.
+  split.
+  - intros [Hprefix Hneq].
+    apply bool_list_prefixb_true_iff in Hprefix.
+    destruct Hprefix as [suffix Hsuffix].
+    exists suffix.
+    split.
+    + intro Hnil.
+      subst suffix.
+      subst ys.
+      apply Bool.negb_true_iff in Hneq.
+      apply Nat.eqb_neq in Hneq.
+      rewrite app_nil_r in Hneq.
+      contradiction Hneq.
+      reflexivity.
+    + exact Hsuffix.
+  - intros [suffix [Hsuffix Hys]].
+    split.
+    + apply bool_list_prefixb_true_iff.
+      exists suffix.
+      exact Hys.
+    + apply Bool.negb_true_iff.
+      apply Nat.eqb_neq.
+      subst ys.
+      rewrite length_app.
+      destruct suffix as [|b suffix'].
+      * contradiction.
+      * simpl.
+        lia.
+Qed.
+
+Theorem bool_list_strict_prefix_implies_neq :
+  forall xs ys,
+    bool_list_strict_prefix xs ys ->
+    xs <> ys.
+Proof.
+  intros xs ys [suffix [Hsuffix Hys]] Heq.
+  rewrite Heq in Hys.
+  destruct suffix as [|b suffix'].
+  - contradiction Hsuffix.
+    reflexivity.
+  - apply (f_equal (@length bool)) in Hys.
+    rewrite length_app in Hys.
+    simpl in Hys.
+    lia.
+Qed.
+
+Theorem bool_list_strict_prefix_implies_length_lt :
+  forall xs ys,
+    bool_list_strict_prefix xs ys ->
+    length xs < length ys.
+Proof.
+  intros xs ys [suffix [Hsuffix Hys]].
+  subst ys.
+  rewrite length_app.
+  destruct suffix as [|b suffix'].
+  - contradiction.
+  - simpl.
+    lia.
+Qed.
+
 Corollary class_preserving_run_jitter_family_frame_bits_invariant :
   forall base rs1 rs2,
     class_preserving_run_jitter_family base rs1 rs2 ->
@@ -1040,31 +1160,61 @@ Fixpoint classes_of_bits (xs : list bool) : list PulseClass :=
   | true :: xs' => MarkLong :: GapShort :: classes_of_bits xs'
   end.
 
-Lemma frame_tokens_from_classes_of_bits :
+Fixpoint classes_of_bit_prefix (xs : list bool) : list PulseClass :=
+  match xs with
+  | [] => []
+  | false :: xs' => MarkShort :: GapLong :: classes_of_bit_prefix xs'
+  | true :: xs' => MarkLong :: GapShort :: classes_of_bit_prefix xs'
+  end.
+
+Lemma classes_of_bits_as_bit_prefix :
   forall xs,
-    frame_tokens_from_classes (classes_of_bits xs) =
-      map (fun b : bool => if b then FrameBitOne else FrameBitZero) xs ++ [FrameBreak].
+    classes_of_bits xs = classes_of_bit_prefix xs ++ [GapBreak].
 Proof.
   induction xs as [|b xs IH]; simpl.
   - reflexivity.
   - destruct b; simpl; rewrite IH; reflexivity.
 Qed.
 
-Lemma frame_tokens_from_classes_of_bits_app :
+Lemma frame_tokens_from_bit_prefix_classes_app :
   forall xs suffix,
-    frame_tokens_from_classes (classes_of_bits xs ++ suffix) =
-      map (fun b : bool => if b then FrameBitOne else FrameBitZero) xs ++
-      frame_tokens_from_classes (GapBreak :: suffix).
+    frame_tokens_from_classes (classes_of_bit_prefix xs ++ suffix) =
+      bit_tokens_of_bits xs ++ frame_tokens_from_classes suffix.
 Proof.
   induction xs as [|b xs IH]; intro suffix; simpl.
   - reflexivity.
   - destruct b; simpl; rewrite IH; reflexivity.
 Qed.
 
+Lemma frame_tokens_from_classes_of_bits :
+  forall xs,
+    frame_tokens_from_classes (classes_of_bits xs) =
+      bit_tokens_of_bits xs ++ [FrameBreak].
+Proof.
+  intro xs.
+  rewrite classes_of_bits_as_bit_prefix.
+  rewrite frame_tokens_from_bit_prefix_classes_app.
+  reflexivity.
+Qed.
+
+Lemma frame_tokens_from_classes_of_bits_app :
+  forall xs suffix,
+    frame_tokens_from_classes (classes_of_bits xs ++ suffix) =
+      bit_tokens_of_bits xs ++
+      frame_tokens_from_classes (GapBreak :: suffix).
+Proof.
+  intro xs.
+  rewrite classes_of_bits_as_bit_prefix.
+  intro suffix.
+  rewrite <- app_assoc.
+  rewrite frame_tokens_from_bit_prefix_classes_app.
+  reflexivity.
+Qed.
+
 Lemma first_frame_bits_from_bit_tokens_aux_true :
   forall xs,
     first_frame_bits_from_tokens_aux true
-      (map (fun b : bool => if b then FrameBitOne else FrameBitZero) xs ++ [FrameBreak]) = xs.
+      (bit_tokens_of_bits xs ++ [FrameBreak]) = xs.
 Proof.
   induction xs as [|b xs IH]; simpl.
   - reflexivity.
@@ -1074,7 +1224,7 @@ Qed.
 Lemma first_frame_bits_from_bit_tokens :
   forall xs,
     first_frame_bits_from_tokens
-      (map (fun b : bool => if b then FrameBitOne else FrameBitZero) xs ++ [FrameBreak]) = xs.
+      (bit_tokens_of_bits xs ++ [FrameBreak]) = xs.
 Proof.
   intro xs.
   unfold first_frame_bits_from_tokens.
@@ -1087,11 +1237,39 @@ Qed.
 Lemma first_frame_bits_from_bit_tokens_then_break_suffix :
   forall xs ys,
     first_frame_bits_from_tokens_aux true
-      (map (fun b : bool => if b then FrameBitOne else FrameBitZero) xs ++ FrameBreak :: ys) = xs.
+      (bit_tokens_of_bits xs ++ FrameBreak :: ys) = xs.
 Proof.
   induction xs as [|b xs IH]; intro ys; simpl.
   - reflexivity.
   - destruct b; simpl; f_equal; apply IH.
+Qed.
+
+Lemma first_frame_bits_from_bit_tokens_aux_true_unknown_suffix :
+  forall xs ys,
+    first_frame_bits_from_tokens_aux true
+      (bit_tokens_of_bits xs ++ FrameUnknown :: ys) = xs.
+Proof.
+  induction xs as [|b xs IH]; intro ys; simpl.
+  - reflexivity.
+  - destruct b; simpl; f_equal; apply IH.
+Qed.
+
+Theorem first_frame_bits_from_bit_tokens_then_unknown_suffix :
+  forall xs ys,
+    xs <> [] ->
+    first_frame_bits_from_tokens
+      (bit_tokens_of_bits xs ++ FrameUnknown :: ys) = xs.
+Proof.
+  intros xs ys Hnonempty.
+  destruct xs as [|b xs].
+  - contradiction.
+  - unfold first_frame_bits_from_tokens.
+    simpl.
+    destruct b; simpl.
+    + f_equal.
+      apply first_frame_bits_from_bit_tokens_aux_true_unknown_suffix.
+    + f_equal.
+      apply first_frame_bits_from_bit_tokens_aux_true_unknown_suffix.
 Qed.
 
 Theorem frame_bits_from_classes_of_bits :
@@ -1118,6 +1296,32 @@ Proof.
     simpl.
     destruct b; simpl; f_equal;
       apply first_frame_bits_from_bit_tokens_then_break_suffix.
+Qed.
+
+Theorem frame_bits_from_bit_prefix_classes_then_unknown_token_suffix :
+  forall xs suffix ys,
+    xs <> [] ->
+    frame_tokens_from_classes suffix = FrameUnknown :: ys ->
+    frame_bits_from_classes (classes_of_bit_prefix xs ++ suffix) = xs.
+Proof.
+  intros xs suffix ys Hnonempty Hsuffix.
+  unfold frame_bits_from_classes.
+  rewrite frame_tokens_from_bit_prefix_classes_app.
+  rewrite Hsuffix.
+  apply first_frame_bits_from_bit_tokens_then_unknown_suffix.
+  exact Hnonempty.
+Qed.
+
+Corollary frame_bits_from_bit_prefix_classes_then_marklong_gaplong_truncates :
+  forall xs suffix,
+    xs <> [] ->
+    frame_bits_from_classes (classes_of_bit_prefix xs ++ MarkLong :: GapLong :: suffix) = xs.
+Proof.
+  intros xs suffix Hnonempty.
+  eapply frame_bits_from_bit_prefix_classes_then_unknown_token_suffix.
+  - exact Hnonempty.
+  - simpl.
+    reflexivity.
 Qed.
 
 Definition packet_alias_classes (xs ys : list PulseClass) : Prop :=

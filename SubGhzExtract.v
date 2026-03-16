@@ -60,6 +60,9 @@ Extraction "burst_detector_extracted.ml"
   frame_tokens_from_classes
   first_frame_bits_from_tokens
   frame_bits_from_classes
+  bit_tokens_of_bits
+  bool_list_prefixb
+  bool_list_strict_prefixb
   bits_to_nat
   field_bits
   field_value
@@ -159,6 +162,9 @@ Extraction "burst_detector_extracted.ml"
   family_descriptor_from_iq
   semantic_tower_from_iq
   packet_schema_descriptor_phase_signature_from_iq
+  observation_boundary_kind_code
+  observation_boundary_kind_between_iq_regimes
+  observation_boundary_kind_between_observation_regimes
   observation_regime_eqb
   packet_schema_descriptor_phase_signature_eqb
   class_transition_between_iq_regimesb
@@ -172,6 +178,7 @@ Extraction "burst_detector_extracted.ml"
   phase_signature_sequence_from_iq_regimes
   observation_regime_class_transition_mask
   observation_regime_phase_transition_mask
+  observation_regime_boundary_kind_mask
   regime_phase_atlas_from_iq
   frame_bits_sequence_from_iq
   packet_structure_profile_from_iq_sequence
